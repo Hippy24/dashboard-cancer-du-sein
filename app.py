@@ -25,8 +25,6 @@ DEATHS_COLOR = "#D62728"
 MAP_MARK_YELLOW = "#FFD400"
 MAP_MARK_SIZE = 4
 
-FA_CSS = "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-
 KPI_BG = "#3D57A1"
 KPI_BORDER = "#E6E8ED"
 
@@ -303,7 +301,7 @@ def world_row_for_year(year: int) -> dict:
     return out
 
 
-app = Dash(__name__, external_stylesheets=[FA_CSS])
+app = Dash(__name__)
 server = app.server
 
 app.title = "TABLEAU DE BORD ÉPIDÉMIOLOGIQUE MONDIAL DU CANCER DE SEIN : 2010 - 2023"
@@ -381,7 +379,7 @@ app.layout = html.Div(
     children=[
         html.Div(
             style={
-                "width": "290px",
+                "width": "275px",
                 "backgroundColor": SIDEBAR_BG,
                 "color": TEXT_LIGHT,
                 "padding": "18px 16px",
@@ -394,16 +392,33 @@ app.layout = html.Div(
                 "margin": "12px",
             },
             children=[
+                # =========================
+                # IMAGE SIDEBAR (MODIFIÉE)
+                # =========================
                 html.Div(
-                    style={"textAlign": "center", "marginBottom": "4px"},
+                    style={
+                        "textAlign": "center",
+                        # On “colle” l’image vers le haut et on élargit visuellement
+                        "marginTop": "-12px",
+                        "marginLeft": "-10px",
+                        "marginRight": "-10px",
+                        "marginBottom": "2px",
+                    },
                     children=[
-                        html.I(
-                            className="fa-solid fa-ribbon",
-                            style={"fontSize": "120px", "color": PINK_SLOGAN, "display": "block", "margin": "8px auto 0 auto"},
+                        html.Img(
+                            src="/assets/Cancer-du-sein.jpg",
+                            style={
+                                "width": "90%",
+                                "height": "210px",
+                                "display": "block",
+                                "margin": "0 auto",
+                                "objectFit": "cover",
+                                "borderRadius": "22px",
+                            },
                         ),
                         html.Div(
                             "Des données pour sauver des vies",
-                            style={"marginTop": "10px", "fontWeight": "900", "fontSize": "13px", "color": PINK_SLOGAN},
+                            style={"marginTop": "8px", "fontWeight": "900", "fontSize": "13px", "color": PINK_SLOGAN},
                         ),
                     ],
                 ),
