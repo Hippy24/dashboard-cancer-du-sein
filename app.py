@@ -1,10 +1,13 @@
 import pandas as pd
 import numpy as np
+import functools
 
 import plotly.express as px
 from dash import Dash, dcc, html, Input, Output, dash_table
 
-
+# ============================================================
+# CONFIG
+# ============================================================
 CSV_PATH = "dataset_final_cancer_sein_IHME_WB_2010_2025.csv"
 
 SIDEBAR_BG = "#071A33"
@@ -21,7 +24,6 @@ PINK_SLOGAN = "#FF4FA3"
 CASES_COLOR = "#1F77B4"
 DEATHS_COLOR = "#D62728"
 
-# (Comparaison Monde supprimée)
 MAP_MARK_YELLOW = "#FFD400"
 MAP_MARK_SIZE = 4
 
@@ -30,7 +32,9 @@ KPI_BORDER = "#E6E8ED"
 
 base_font = {"fontFamily": "Arial, sans-serif"}
 
-
+# ============================================================
+# LOAD + CLEAN
+# ============================================================
 df = pd.read_csv(CSV_PATH)
 
 if "year" in df.columns:
@@ -44,6 +48,7 @@ possible_deaths_cols = ["deaths", "death_count", "mortality_count", "mortality_d
 cases_col = next((c for c in possible_cases_cols if c in df.columns), None)
 deaths_col = next((c for c in possible_deaths_cols if c in df.columns), None)
 
+# fallback estimates from ASR * population
 if cases_col is None and "incidence_asr" in df.columns and "population" in df.columns:
     df["cases_est"] = df["incidence_asr"] * df["population"] / 100000.0
     cases_col = "cases_est"
@@ -52,38 +57,55 @@ if deaths_col is None and "mortality_asr" in df.columns and "population" in df.c
     df["deaths_est"] = df["mortality_asr"] * df["population"] / 100000.0
     deaths_col = "deaths_est"
 
+# rates per 100k (crude)
 if cases_col is not None and "population" in df.columns:
-    df["incidence_per_100k"] = (df[cases_col] / df["population"]) * 100000.0
+    df["incidence_per_100k"] = (pd.to_numeric(df[cases_col], errors="coerce") / pd.to_numeric(df["population"], errors="coerce")) * 100000.0
 else:
     df["incidence_per_100k"] = np.nan
 
 if deaths_col is not None and "population" in df.columns:
-    df["mortality_per_100k"] = (df[deaths_col] / df["population"]) * 100000.0
+    df["mortality_per_100k"] = (pd.to_numeric(df[deaths_col], errors="coerce") / pd.to_numeric(df["population"], errors="coerce")) * 100000.0
 else:
     df["mortality_per_100k"] = np.nan
 
+# CFR (cases -> deaths)
 if cases_col is not None and deaths_col is not None:
-    df["cfr"] = df[deaths_col] / df[cases_col]
-    df["mir"] = df[deaths_col] / df[cases_col]
+    c = pd.to_numeric(df[cases_col], errors="coerce")
+    d = pd.to_numeric(df[deaths_col], errors="coerce")
+    df["cfr"] = np.where((c.notna()) & (c != 0) & d.notna(), d / c, np.nan)
 else:
     df["cfr"] = np.nan
+
+# MIR: prefer ASR mortality / ASR incidence if available
+if "mortality_asr" in df.columns and "incidence_asr" in df.columns:
+    ia = pd.to_numeric(df["incidence_asr"], errors="coerce")
+    ma = pd.to_numeric(df["mortality_asr"], errors="coerce")
+    df["mir"] = np.where((ia.notna()) & (ia != 0) & ma.notna(), ma / ia, np.nan)
+else:
     df["mir"] = np.nan
 
 df = df.sort_values(["country", "year"])
 
+def safe_yoy_pct(series: pd.Series) -> pd.Series:
+    """YoY % avoiding division by 0 / negatives (returns NaN in those cases)."""
+    s = pd.to_numeric(series, errors="coerce")
+    prev = s.shift(1)
+    out = (s - prev) / prev * 100.0
+    out = out.where(prev.notna() & (prev > 0), np.nan)
+    return out
+
 for col in ["incidence_per_100k", "mortality_per_100k"]:
-    df[f"{col}_yoy_pct"] = df.groupby("country")[col].pct_change() * 100.0
+    df[f"{col}_yoy_pct"] = df.groupby("country")[col].transform(safe_yoy_pct)
 
 if cases_col is not None:
-    df["cases_yoy_pct"] = df.groupby("country")[cases_col].pct_change() * 100.0
+    df["cases_yoy_pct"] = df.groupby("country")[cases_col].transform(safe_yoy_pct)
 else:
     df["cases_yoy_pct"] = np.nan
 
 if deaths_col is not None:
-    df["deaths_yoy_pct"] = df.groupby("country")[deaths_col].pct_change() * 100.0
+    df["deaths_yoy_pct"] = df.groupby("country")[deaths_col].transform(safe_yoy_pct)
 else:
     df["deaths_yoy_pct"] = np.nan
-
 
 years = sorted(df["year"].dropna().unique().tolist())
 countries = sorted(df["country"].dropna().unique().tolist())
@@ -91,35 +113,39 @@ countries = sorted(df["country"].dropna().unique().tolist())
 default_year = int(years[-1]) if years else 2023
 default_country = "France" if "France" in countries else (countries[0] if countries else None)
 
+min_year = int(years[0]) if years else 2010
+max_year = int(years[-1]) if years else 2023
+
 metric_options = [
     {"label": "Cas", "value": "cases"},
     {"label": "Décès", "value": "deaths"},
     {"label": "Incidence par 100 000", "value": "incidence_per_100k"},
     {"label": "Mortalité par 100 000", "value": "mortality_per_100k"},
+    {"label": "CFR (décès/cas)", "value": "cfr"},
+    {"label": "MIR (ASR mort/ASR inc)", "value": "mir"},
 ]
 if "incidence_asr" in df.columns:
     metric_options.append({"label": "Incidence ASR", "value": "incidence_asr"})
 if "mortality_asr" in df.columns:
     metric_options.append({"label": "Mortalité ASR", "value": "mortality_asr"})
 
-
+# ============================================================
+# FORMATTERS
+# ============================================================
 def fmt_int(x):
     if pd.isna(x):
         return "NA"
     return f"{int(round(float(x))):,}".replace(",", " ")
-
 
 def fmt_float(x, nd=2):
     if pd.isna(x):
         return "NA"
     return f"{float(x):.{nd}f}"
 
-
 def fmt_pct(x, nd=1):
     if pd.isna(x):
         return "NA"
     return f"{float(x):.{nd}f} %"
-
 
 def get_metric_series_col(metric_value: str):
     if metric_value == "cases":
@@ -127,7 +153,6 @@ def get_metric_series_col(metric_value: str):
     if metric_value == "deaths":
         return deaths_col
     return metric_value
-
 
 def empty_fig(message: str):
     fig = px.line()
@@ -141,7 +166,6 @@ def empty_fig(message: str):
         annotations=[dict(text=message, x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False)],
     )
     return fig
-
 
 def apply_axis_format(fig, y_title="Valeur"):
     fig.update_layout(
@@ -171,7 +195,18 @@ def apply_axis_format(fig, y_title="Valeur"):
     )
     return fig
 
+def add_year_vline(fig, year: int):
+    fig.add_vline(
+        x=year,
+        line_width=2,
+        line_dash="dot",
+        opacity=0.6,
+    )
+    return fig
 
+# ============================================================
+# DEFINITIONS (OMS)
+# ============================================================
 WHO_DEFS = {
     "Incidence": (
         "Nombre d’instances (taux d’occurrence) d’une maladie qui commence, ou de personnes qui tombent malades, "
@@ -187,13 +222,19 @@ WHO_DEFS = {
         "Taux de mortalité standardisé sur l’âge : moyenne pondérée des taux de mortalité spécifiques par âge "
         "(par 100 000), les poids étant les proportions par groupes d’âge d’une population standard."
     ),
-    "cfr": "Case fatality ratio (CFR) : proportion de personnes diagnostiquées avec une maladie qui en meurent.",
-    "yoy_pct": (
+    "CFR": "Case fatality ratio : décès/cas (quand cas = cas diagnostiqués).",
+    "MIR": "Mortality-to-incidence ratio : souvent mortalité ASR / incidence ASR (proxy d’accès/efficacité des soins).",
+    "Variation annuelle (YoY)": (
         "Variation en pourcentage par rapport à l’année précédente : "
         "((valeur année N − valeur année N−1) / valeur année N−1) × 100."
     ),
 }
 
+# ============================================================
+# PRE-COMPUTE INDEXES (SPEED)
+# ============================================================
+df_year = {int(y): df[df["year"] == int(y)].copy() for y in years}
+df_country = {c: df[df["country"] == c].sort_values("year").copy() for c in countries}
 
 def safe_weighted_mean(series: pd.Series, weights: pd.Series) -> float:
     s = pd.to_numeric(series, errors="coerce")
@@ -202,7 +243,6 @@ def safe_weighted_mean(series: pd.Series, weights: pd.Series) -> float:
     if mask.sum() == 0:
         return np.nan
     return float((s[mask] * w[mask]).sum() / w[mask].sum())
-
 
 def world_series_by_year() -> pd.DataFrame:
     cols_needed = ["year"]
@@ -246,17 +286,16 @@ def world_series_by_year() -> pd.DataFrame:
     )
 
     g = g.sort_values("year")
-    g["cases_yoy_pct"] = g["cases"].pct_change() * 100.0
-    g["deaths_yoy_pct"] = g["deaths"].pct_change() * 100.0
-    g["incidence_per_100k_yoy_pct"] = g["incidence_per_100k"].pct_change() * 100.0
-    g["mortality_per_100k_yoy_pct"] = g["mortality_per_100k"].pct_change() * 100.0
+    g["cases_yoy_pct"] = safe_yoy_pct(g["cases"])
+    g["deaths_yoy_pct"] = safe_yoy_pct(g["deaths"])
+    g["incidence_per_100k_yoy_pct"] = safe_yoy_pct(g["incidence_per_100k"])
+    g["mortality_per_100k_yoy_pct"] = safe_yoy_pct(g["mortality_per_100k"])
 
     return g
 
-
 WORLD_TS = world_series_by_year()
 
-
+@functools.lru_cache(maxsize=256)
 def world_row_for_year(year: int) -> dict:
     row = WORLD_TS[WORLD_TS["year"] == year]
     if row.empty:
@@ -278,12 +317,13 @@ def world_row_for_year(year: int) -> dict:
                 "urban_pop_pct",
                 "gdp_per_capita",
                 "health_exp_gdp",
+                "mir",
             ]
         }
 
     out = row.iloc[0].to_dict()
 
-    d = df[df["year"] == year].copy()
+    d = df_year.get(int(year), df[df["year"] == year]).copy()
     if "population" in d.columns:
         pop = d["population"]
         out["incidence_asr"] = safe_weighted_mean(d["incidence_asr"], pop) if "incidence_asr" in d.columns else np.nan
@@ -298,13 +338,31 @@ def world_row_for_year(year: int) -> dict:
         out["gdp_per_capita"] = np.nan
         out["health_exp_gdp"] = np.nan
 
+    # MIR world: ASR mort / ASR inc
+    ia = out.get("incidence_asr", np.nan)
+    ma = out.get("mortality_asr", np.nan)
+    if (not pd.isna(ia)) and ia != 0 and (not pd.isna(ma)):
+        out["mir"] = ma / ia
+    else:
+        out["mir"] = np.nan
+
     return out
 
+@functools.lru_cache(maxsize=512)
+def top10_for_year_metric(year: int, metric_col: str) -> pd.DataFrame:
+    dff = df_year.get(int(year))
+    if dff is None or metric_col is None or metric_col not in df.columns:
+        return pd.DataFrame(columns=["country", metric_col if metric_col else "value"])
+    top_df = dff[["country", metric_col]].dropna().sort_values(metric_col, ascending=False).head(10)
+    return top_df
 
+# ============================================================
+# DASH APP
+# ============================================================
 app = Dash(__name__)
 server = app.server
 
-app.title = "TABLEAU DE BORD ÉPIDÉMIOLOGIQUE MONDIAL DU CANCER DE SEIN : 2010 - 2023"
+app.title = f"TABLEAU DE BORD ÉPIDÉMIOLOGIQUE MONDIAL DU CANCER DE SEIN : {min_year} - {max_year}"
 
 center_title_h4 = {"marginTop": "0", "color": TEXT_DARK, "textAlign": "center", "fontWeight": "900"}
 
@@ -363,16 +421,6 @@ kpi_footer_style = {
     "lineHeight": "1.5",
     "marginBottom": "4px",
 }
-kpi_subline_style = {
-    "fontWeight": "700",
-    "fontSize": "12px",
-    "color": "#FFFFFF",
-    "opacity": "0.95",
-    "textAlign": "center",
-    "marginTop": "6px",
-    "lineHeight": "1.5",
-}
-
 
 app.layout = html.Div(
     style={**base_font, "display": "flex", "height": "100vh"},
@@ -392,13 +440,9 @@ app.layout = html.Div(
                 "margin": "12px",
             },
             children=[
-                # =========================
-                # IMAGE SIDEBAR (MODIFIÉE)
-                # =========================
                 html.Div(
                     style={
                         "textAlign": "center",
-                        # On “colle” l’image vers le haut et on élargit visuellement
                         "marginTop": "-12px",
                         "marginLeft": "-10px",
                         "marginRight": "-10px",
@@ -496,7 +540,7 @@ app.layout = html.Div(
                     style=main_title_card_style,
                     children=[
                         html.Div(
-                            "TABLEAU DE BORD ÉPIDÉMIOLOGIQUE MONDIAL DU CANCER DE SEIN : 2010 - 2023",
+                            f"TABLEAU DE BORD ÉPIDÉMIOLOGIQUE MONDIAL DU CANCER DE SEIN : {min_year} - {max_year}",
                             style=main_title_text_style,
                         ),
                         html.Div(
@@ -508,7 +552,11 @@ app.layout = html.Div(
 
                 html.Div(
                     id="subtitle",
-                    style={"color": TEXT_DARK, "opacity": "0.95", "marginBottom": "14px", "fontWeight": "900", "textAlign": "center", "fontSize": "18px"},
+                    style={"color": TEXT_DARK, "opacity": "0.95", "marginBottom": "10px", "fontWeight": "900", "textAlign": "center", "fontSize": "18px"},
+                ),
+                html.Div(
+                    id="map_missing_note",
+                    style={"color": TEXT_DARK, "opacity": "0.85", "marginBottom": "14px", "fontWeight": "700", "textAlign": "center", "fontSize": "13px"},
                 ),
 
                 html.Div(
@@ -604,7 +652,9 @@ app.layout = html.Div(
     ],
 )
 
-
+# ============================================================
+# CALLBACKS
+# ============================================================
 @app.callback(
     Output("country_dd", "disabled"),
     Input("scope_rb", "value"),
@@ -612,9 +662,9 @@ app.layout = html.Div(
 def toggle_country_dd(scope_value):
     return scope_value == "world"
 
-
 @app.callback(
     Output("subtitle", "children"),
+    Output("map_missing_note", "children"),
     Output("kpi_cases", "children"),
     Output("kpi_deaths", "children"),
     Output("kpi_rates", "children"),
@@ -637,8 +687,10 @@ def toggle_country_dd(scope_value):
 )
 def update(scope, country, year, metric_choice):
     if year is None:
+        msg = "Sélectionnez une année"
         return (
-            "Sélectionnez une année",
+            msg,
+            "",
             html.Div("NA"),
             html.Div("NA"),
             html.Div("NA"),
@@ -661,8 +713,8 @@ def update(scope, country, year, metric_choice):
     subtitle = f"{label_entity} : {year}"
 
     trend_block_title = f"Tendance annuelle ({label_entity})"
-    cases_trend_title = f"Cas (année par année) – référence {year}"
-    deaths_trend_title = f"Décès (année par année) – référence {year}"
+    cases_trend_title = f"Cas (année par année) – année sélectionnée : {year}"
+    deaths_trend_title = f"Décès (année par année) – année sélectionnée : {year}"
     map_title = f"Carte mondiale pour l’année {year}"
     top10_title = f"Top 10 pays pour l’année {year}"
     epi_title = f"Fiche épidémiologique ({label_entity}) - année {year}"
@@ -685,9 +737,10 @@ def update(scope, country, year, metric_choice):
             style={"height": "100%"},
         )
 
+    # ---------- DATA ROWS ----------
+    map_missing_note = ""
     if scope == "world":
         w = world_row_for_year(year)
-
         cases_v = w.get("cases", np.nan)
         deaths_v = w.get("deaths", np.nan)
 
@@ -698,6 +751,7 @@ def update(scope, country, year, metric_choice):
         mort_asr_v = w.get("mortality_asr", np.nan)
 
         cfr_v = w.get("cfr", np.nan)
+        mir_v = w.get("mir", np.nan)
 
         cases_yoy = w.get("cases_yoy_pct", np.nan)
         deaths_yoy = w.get("deaths_yoy_pct", np.nan)
@@ -705,9 +759,6 @@ def update(scope, country, year, metric_choice):
         mort_yoy = w.get("mortality_per_100k_yoy_pct", np.nan)
 
         ts = WORLD_TS.copy()
-
-        cases_label = "Cas"
-        deaths_label = "Décès"
 
         kpi_cases = kpi_box("Cas estimés", fmt_int(cases_v), [f"Variation annuelle : {fmt_pct(cases_yoy)}"])
         kpi_deaths = kpi_box("Décès estimés", fmt_int(deaths_v), [f"Variation annuelle : {fmt_pct(deaths_yoy)}"])
@@ -725,16 +776,18 @@ def update(scope, country, year, metric_choice):
             "Indicateurs",
             fmt_float(cfr_v, 3),
             [
-                "Ratio de létalité (CFR)",
-                f"Incidence ASR : {fmt_float(inc_asr_v)}",
-                f"Mortalité ASR : {fmt_float(mort_asr_v)}",
+                "CFR (décès/cas)",
+                f"MIR : {fmt_float(mir_v, 3)}",
+                f"Incidence ASR : {fmt_float(inc_asr_v)} | Mortalité ASR : {fmt_float(mort_asr_v)}",
             ],
         )
 
     else:
         if country is None:
+            msg = "Sélectionnez un pays et une année"
             return (
-                "Sélectionnez un pays et une année",
+                msg,
+                "",
                 html.Div("NA"),
                 html.Div("NA"),
                 html.Div("NA"),
@@ -752,7 +805,7 @@ def update(scope, country, year, metric_choice):
                 html.Div("Sélection requise"),
             )
 
-        dff_country = df[df["country"] == country].copy()
+        dff_country = df_country.get(country, df[df["country"] == country].copy())
         row = dff_country[dff_country["year"] == year]
 
         def get_val(col):
@@ -770,6 +823,7 @@ def update(scope, country, year, metric_choice):
         mort_asr_v = get_val("mortality_asr") if "mortality_asr" in df.columns else np.nan
 
         cfr_v = get_val("cfr")
+        mir_v = get_val("mir")
 
         cases_yoy = get_val("cases_yoy_pct")
         deaths_yoy = get_val("deaths_yoy_pct")
@@ -797,35 +851,44 @@ def update(scope, country, year, metric_choice):
             "Indicateurs",
             fmt_float(cfr_v, 3),
             [
-                "Ratio de létalité (CFR)",
-                f"Incidence ASR : {fmt_float(inc_asr_v)}",
-                f"Mortalité ASR : {fmt_float(mort_asr_v)}",
+                "CFR (décès/cas)",
+                f"MIR : {fmt_float(mir_v, 3)}",
+                f"Incidence ASR : {fmt_float(inc_asr_v)} | Mortalité ASR : {fmt_float(mort_asr_v)}",
             ],
         )
 
-    # =========================
-    # COURBES DE TENDANCE (SANS COMPARAISON MONDE)
-    # =========================
-
+    # ============================================================
+    # TRENDS (with vertical line on selected year + better hover)
+    # ============================================================
     if scope == "world":
         if ts[["year", "cases"]].dropna().empty:
             cases_trend_fig = empty_fig("Cas indisponibles")
         else:
             dplot = ts[["year", "cases"]].dropna()
             cases_trend_fig = px.line(dplot, x="year", y="cases", markers=True)
-            cases_trend_fig.update_traces(line=dict(color=CASES_COLOR), marker=dict(color=CASES_COLOR))
+            cases_trend_fig.update_traces(
+                line=dict(color=CASES_COLOR),
+                marker=dict(color=CASES_COLOR),
+                hovertemplate="Année: %{x}<br>Cas: %{y:,.0f}<extra></extra>",
+            )
             cases_trend_fig = apply_axis_format(cases_trend_fig, y_title="Cas")
+            cases_trend_fig = add_year_vline(cases_trend_fig, year)
 
         if ts[["year", "deaths"]].dropna().empty:
             deaths_trend_fig = empty_fig("Décès indisponibles")
         else:
             dplot = ts[["year", "deaths"]].dropna()
             deaths_trend_fig = px.line(dplot, x="year", y="deaths", markers=True)
-            deaths_trend_fig.update_traces(line=dict(color=DEATHS_COLOR), marker=dict(color=DEATHS_COLOR))
+            deaths_trend_fig.update_traces(
+                line=dict(color=DEATHS_COLOR),
+                marker=dict(color=DEATHS_COLOR),
+                hovertemplate="Année: %{x}<br>Décès: %{y:,.0f}<extra></extra>",
+            )
             deaths_trend_fig = apply_axis_format(deaths_trend_fig, y_title="Décès")
+            deaths_trend_fig = add_year_vline(deaths_trend_fig, year)
 
     else:
-        # --- CAS : Pays uniquement ---
+        # CAS
         if cases_col is None or cases_col not in df.columns:
             cases_trend_fig = empty_fig("Cas indisponibles")
         else:
@@ -834,10 +897,15 @@ def update(scope, country, year, metric_choice):
                 cases_trend_fig = empty_fig("Aucune donnée")
             else:
                 cases_trend_fig = px.line(dplot, x="year", y=cases_col, markers=True)
-                cases_trend_fig.update_traces(line=dict(color=CASES_COLOR), marker=dict(color=CASES_COLOR))
+                cases_trend_fig.update_traces(
+                    line=dict(color=CASES_COLOR),
+                    marker=dict(color=CASES_COLOR),
+                    hovertemplate="Année: %{x}<br>Valeur: %{y:,.0f}<extra></extra>",
+                )
                 cases_trend_fig = apply_axis_format(cases_trend_fig, y_title=cases_label)
+                cases_trend_fig = add_year_vline(cases_trend_fig, year)
 
-        # --- DÉCÈS : Pays uniquement ---
+        # DÉCÈS
         if deaths_col is None or deaths_col not in df.columns:
             deaths_trend_fig = empty_fig("Décès indisponibles")
         else:
@@ -846,21 +914,38 @@ def update(scope, country, year, metric_choice):
                 deaths_trend_fig = empty_fig("Aucune donnée")
             else:
                 deaths_trend_fig = px.line(dplot, x="year", y=deaths_col, markers=True)
-                deaths_trend_fig.update_traces(line=dict(color=DEATHS_COLOR), marker=dict(color=DEATHS_COLOR))
+                deaths_trend_fig.update_traces(
+                    line=dict(color=DEATHS_COLOR),
+                    marker=dict(color=DEATHS_COLOR),
+                    hovertemplate="Année: %{x}<br>Valeur: %{y:,.0f}<extra></extra>",
+                )
                 deaths_trend_fig = apply_axis_format(deaths_trend_fig, y_title=deaths_label)
+                deaths_trend_fig = add_year_vline(deaths_trend_fig, year)
 
-    # =========================
-    # CARTE + TOP 10
-    # =========================
+    # ============================================================
+    # MAP + TOP10
+    # ============================================================
     metric_col = get_metric_series_col(metric_choice)
-    dff_year = df[df["year"] == year].copy()
+    dff_year = df_year.get(year, df[df["year"] == year].copy())
 
-    if metric_col is None or metric_col not in df.columns or "iso3" not in df.columns:
+    # note for missing iso3
+    if "iso3" in dff_year.columns:
+        missing_iso = int(dff_year["iso3"].isna().sum())
+        if missing_iso > 0:
+            map_missing_note = f"Note : {missing_iso} pays sans code ISO-3 ne sont pas affichés sur la carte."
+        else:
+            map_missing_note = ""
+    else:
+        map_missing_note = "Note : colonne ISO-3 absente — carte limitée."
+
+    # MAP
+    if metric_col is None or metric_col not in df.columns or "iso3" not in dff_year.columns:
         map_fig = empty_fig("Carte indisponible")
     else:
         map_df = dff_year[["iso3", "country", metric_col]].dropna()
         map_fig = px.choropleth(map_df, locations="iso3", color=metric_col, hover_name="country")
 
+        # highlight selected country
         if scope == "country":
             row_sel = dff_year[dff_year["country"] == country]
             iso3_sel = None
@@ -891,14 +976,15 @@ def update(scope, country, year, metric_choice):
             geo=dict(showframe=False, showcoastlines=False),
         )
 
+    # TOP10
     if metric_col is None or metric_col not in df.columns:
         top10_fig = empty_fig("Top 10 indisponible")
     else:
-        top_df = dff_year[["country", metric_col]].dropna().sort_values(metric_col, ascending=False).head(10)
+        top_df = top10_for_year_metric(year, metric_col)
         if top_df.empty:
             top10_fig = empty_fig("Aucune donnée")
         else:
-            top10_fig = px.bar(top_df, x=metric_col, y="country", orientation="h")
+            top10_fig = px.bar(top_df, x=metric_col, y="country", orientation="h", text=metric_col)
             top10_fig.update_layout(
                 title=None,
                 yaxis=dict(autorange="reversed"),
@@ -908,10 +994,15 @@ def update(scope, country, year, metric_choice):
                 xaxis_title="Valeur",
                 yaxis_title="",
             )
+            top10_fig.update_traces(
+                texttemplate="%{text:.2f}" if metric_col in ["incidence_per_100k", "mortality_per_100k", "incidence_asr", "mortality_asr", "cfr", "mir"] else "%{text:,.0f}",
+                textposition="outside",
+                hovertemplate="Pays: %{y}<br>Valeur: %{x}<extra></extra>",
+            )
 
-    # =========================
-    # TABLE ÉPIDÉMIO
-    # =========================
+    # ============================================================
+    # EPI TABLE (native sort/filter/export + nicer formatting)
+    # ============================================================
     if scope == "world":
         w = world_row_for_year(year)
         table_data = {
@@ -928,6 +1019,7 @@ def update(scope, country, year, metric_choice):
             "incidence_asr": w.get("incidence_asr", np.nan),
             "mortality_asr": w.get("mortality_asr", np.nan),
             "cfr": w.get("cfr", np.nan),
+            "mir": w.get("mir", np.nan),
             "cases_yoy_pct": w.get("cases_yoy_pct", np.nan),
             "deaths_yoy_pct": w.get("deaths_yoy_pct", np.nan),
             "incidence_per_100k_yoy_pct": w.get("incidence_per_100k_yoy_pct", np.nan),
@@ -941,6 +1033,7 @@ def update(scope, country, year, metric_choice):
             epi_table = html.Div("Aucune donnée pour cette combinaison pays et année.")
             return (
                 subtitle,
+                map_missing_note,
                 kpi_cases,
                 kpi_deaths,
                 kpi_rates,
@@ -980,6 +1073,7 @@ def update(scope, country, year, metric_choice):
         add_col("incidence_asr")
         add_col("mortality_asr")
         add_col("cfr")
+        add_col("mir")
         add_col("cases_yoy_pct")
         add_col("deaths_yoy_pct")
         add_col("incidence_per_100k_yoy_pct")
@@ -989,21 +1083,36 @@ def update(scope, country, year, metric_choice):
 
         rename_map = {}
         if cases_col == "cases_est":
-            rename_map["cases_est"] = "cas estimés"
+            rename_map["cases_est"] = "cas_estimés"
         if deaths_col == "deaths_est":
-            rename_map["deaths_est"] = "décès estimés"
+            rename_map["deaths_est"] = "décès_estimés"
         row_disp = row_disp.rename(columns=rename_map)
 
     epi_table = dash_table.DataTable(
         columns=[{"name": c, "id": c} for c in row_disp.columns],
         data=row_disp.to_dict("records"),
+        sort_action="native",
+        filter_action="native",
+        export_format="csv",
+        export_headers="display",
+        page_action="none",
         style_table={"overflowX": "auto"},
-        style_cell={"fontFamily": "Arial", "fontSize": "13px", "padding": "8px", "whiteSpace": "normal", "height": "auto"},
+        style_cell={
+            "fontFamily": "Arial",
+            "fontSize": "13px",
+            "padding": "8px",
+            "whiteSpace": "normal",
+            "height": "auto",
+        },
         style_header={"fontWeight": "700", "backgroundColor": "#F2F6FF"},
+        style_data_conditional=[
+            {"if": {"row_index": "odd"}, "backgroundColor": "rgba(0,0,0,0.02)"},
+        ],
     )
 
     return (
         subtitle,
+        map_missing_note,
         kpi_cases,
         kpi_deaths,
         kpi_rates,
@@ -1021,6 +1130,9 @@ def update(scope, country, year, metric_choice):
         epi_table,
     )
 
-
+# ============================================================
+# RUN
+# ============================================================
 if __name__ == "__main__":
+    # En production (Render), lance via gunicorn:  gunicorn app:server
     app.run(debug=True)
