@@ -26,7 +26,6 @@ APP_TITLE = "Tableau de bord épidémiologique mondial du cancer de sein : 2010 
 SUBTITLE = "Sources de données : IHME & Banque mondiale"
 QUALITY_TEXT_FIXED = "Qualité du modèle - coefficient de détermination = 0.963 | erreur absolue moyenne = 0.912"
 
-# Choix du thème et des styles
 THEME = dbc.themes.DARKLY
 
 COLORS = {
@@ -101,7 +100,6 @@ TAB_SELECTED_STYLE = {
     "textAlign": "center",
 }
 
-# Définition des options déroulantes avec le CSS
 CSS_DROPDOWN = """
 .sidebar .Select-control { background-color: #F3F6FF !important; border: 1px solid rgba(0,0,0,0.20) !important; }
 .sidebar .Select-placeholder { color: #000000 !important; }
@@ -114,6 +112,7 @@ CSS_DROPDOWN = """
 .sidebar .VirtualizedSelectFocusedOption{ color:#000000 !important; background-color:#E6EEFF !important; }
 .sidebar .Select { color:#000000 !important; }
 """
+
 
 def wrap_title(s: str, width: int = 38) -> str:
     return "<br>".join(textwrap.wrap(str(s).strip(), width=width))
@@ -181,16 +180,33 @@ def interpretation_box(children):
         className="mt-2"
     )
 
-# Manipulation des données
+def fmt(x, digits=2):
+    try:
+        if x is None or (isinstance(x, float) and np.isnan(x)):
+            return "-"
+        return f"{x:,.{digits}f}"
+    except Exception:
+        return "-"
+
+def kpi_card(title, value, sub=""):
+    return dbc.Card(
+        dbc.CardBody([
+            html.Div(title, style={"color": COLORS["muted"], "fontSize": "0.92rem", "textAlign": "center", "fontWeight": "700"}),
+            html.Div(value, className="h4", style={"margin": "6px 0 2px 0", "textAlign": "center", "color": COLORS["kpi_value"], "fontWeight": "800"}),
+            html.Div(sub, style={"color": COLORS["muted"], "fontSize": "0.82rem", "textAlign": "center"}),
+        ], style={"padding": "10px"}),
+        style=STYLE_CARD
+    )
+
+# Chargement et manipulation des données
 def load_data(path: str = DATA_FILENAME) -> pd.DataFrame:
     script_dir = Path(__file__).resolve().parent
     csv_path = Path(path)
     if not csv_path.is_file():
         csv_path = script_dir / path
     if not csv_path.is_file():
-        raise FileNotFoundError(f"CSV introuvable: {path}\n→ Mets le fichier ici: {script_dir}")
-    df_ = pd.read_csv(csv_path)
-    return df_
+        raise FileNotFoundError(f"CSV introuvable")
+    return pd.read_csv(csv_path)
 
 def safe_numeric(df_, cols):
     for c in cols:
@@ -237,7 +253,42 @@ def add_features(df_: pd.DataFrame) -> pd.DataFrame:
     )
     return d
 
-# Construction des modèles
+# AGRÉGATS MONDE
+def world_year_table(df_year: pd.DataFrame) -> pd.DataFrame:
+    d = df_year.dropna(subset=["population"]).copy()
+    if d.empty:
+        return pd.DataFrame()
+    w = d["population"].replace(0, np.nan)
+
+    def wavg(series):
+        s = series.replace([np.inf, -np.inf], np.nan)
+        ok = s.notna() & w.notna()
+        if ok.sum() == 0:
+            return np.nan
+        return float(np.average(s[ok], weights=w[ok]))
+
+    out = {
+        "incidence_asr": wavg(d["incidence_asr"]),
+        "mortality_asr": wavg(d["mortality_asr"]),
+        "fatality_proxy": wavg(d["fatality_proxy"]),
+        "estimated_cases": float(d["estimated_cases"].sum()),
+        "estimated_deaths": float(d["estimated_deaths"].sum()),
+        "risk_score": wavg(d["risk_score"]),
+    }
+    return pd.DataFrame([out])
+
+def world_time_table(df_all: pd.DataFrame) -> pd.DataFrame:
+    rows = []
+    for y, dy in df_all.groupby("year"):
+        t = world_year_table(dy)
+        if not t.empty:
+            t["year"] = y
+            rows.append(t)
+    if not rows:
+        return pd.DataFrame()
+    return pd.concat(rows, ignore_index=True).sort_values("year")
+
+# Définition des modèles
 def train_mortality_model(df_: pd.DataFrame):
     target = "mortality_asr"
     features = ["incidence_asr", "gdp_per_capita", "health_exp_gdp", "urban_pop_pct", "population"]
@@ -269,17 +320,17 @@ def forecast_trend(df_country: pd.DataFrame, y_col: str, horizon: int):
     if dc["year"].nunique() < 3:
         return None
 
-    X = dc[["year"]].values
-    y = dc[y_col].values
+    X = dc[["year"]].astype(float).values
+    y = dc[y_col].astype(float).values
 
     lr = LinearRegression()
     lr.fit(X, y)
 
     last_year = int(dc["year"].max())
-    future = np.arange(last_year + 1, last_year + 1 + horizon)
+    future = np.arange(last_year + 1, last_year + 1 + int(horizon))
     yhat = lr.predict(future.reshape(-1, 1))
-    return pd.DataFrame({"year": future, "pred": yhat, "last_year": last_year})
 
+    return pd.DataFrame({"year": future, "pred": yhat, "last_year": last_year})
 
 def compute_clusters(df_: pd.DataFrame, year: int, k: int):
     cols = ["incidence_asr", "mortality_asr", "gdp_per_capita", "health_exp_gdp", "urban_pop_pct"]
@@ -308,8 +359,7 @@ def compute_clusters(df_: pd.DataFrame, year: int, k: int):
     centers = pd.DataFrame({"cluster": range(int(k)), "pca1": centers_pca[:, 0], "pca2": centers_pca[:, 1]})
     return d, cols, float(var[0]), float(var[1]), centers
 
-
-# Création des figures
+# FIGURES
 def empty_fig(msg="Données insuffisantes"):
     fig = go.Figure()
     fig.add_annotation(text=msg, x=0.5, y=0.5, showarrow=False, font=dict(color=COLORS["text"]))
@@ -317,24 +367,6 @@ def empty_fig(msg="Données insuffisantes"):
     fig.update_yaxes(visible=False)
     fig.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=10), paper_bgcolor="rgba(0,0,0,0)")
     return fig
-
-def fmt(x, digits=2):
-    try:
-        if x is None or (isinstance(x, float) and np.isnan(x)):
-            return "-"
-        return f"{x:,.{digits}f}"
-    except Exception:
-        return "-"
-
-def kpi_card(title, value, sub=""):
-    return dbc.Card(
-        dbc.CardBody([
-            html.Div(title, style={"color": COLORS["muted"], "fontSize": "0.92rem", "textAlign": "center", "fontWeight": "700"}),
-            html.Div(value, className="h4", style={"margin": "6px 0 2px 0", "textAlign": "center", "color": COLORS["kpi_value"], "fontWeight": "800"}),
-            html.Div(sub, style={"color": COLORS["muted"], "fontSize": "0.82rem", "textAlign": "center"}),
-        ], style={"padding": "10px"}),
-        style=STYLE_CARD
-    )
 
 def choropleth(dy, col, title, height=360):
     if "iso3" not in dy.columns or col not in dy.columns:
@@ -416,49 +448,13 @@ def importance_fig(importances):
     fig.update_yaxes(title_text="")
     return apply_french_layout(fig, "Variables les plus importantes", legend_mode="right")
 
-# AGRÉGATS MONDE
-def world_year_table(df_year: pd.DataFrame) -> pd.DataFrame:
-    d = df_year.dropna(subset=["population"]).copy()
-    if d.empty:
-        return pd.DataFrame()
-    w = d["population"].replace(0, np.nan)
-
-    def wavg(series):
-        s = series.replace([np.inf, -np.inf], np.nan)
-        ok = s.notna() & w.notna()
-        if ok.sum() == 0:
-            return np.nan
-        return float(np.average(s[ok], weights=w[ok]))
-
-    out = {
-        "incidence_asr": wavg(d["incidence_asr"]),
-        "mortality_asr": wavg(d["mortality_asr"]),
-        "fatality_proxy": wavg(d["fatality_proxy"]),
-        "estimated_cases": float(d["estimated_cases"].sum()),
-        "estimated_deaths": float(d["estimated_deaths"].sum()),
-        "risk_score": wavg(d["risk_score"]),
-    }
-    return pd.DataFrame([out])
-
-
-def world_time_table(df_all: pd.DataFrame) -> pd.DataFrame:
-    rows = []
-    for y, dy in df_all.groupby("year"):
-        t = world_year_table(dy)
-        if not t.empty:
-            t["year"] = y
-            rows.append(t)
-    if not rows:
-        return pd.DataFrame()
-    return pd.concat(rows, ignore_index=True).sort_values("year")
-
-# INIT DONNÉES
+# INIT DATA
 df_raw = load_data(DATA_FILENAME)
 df = add_features(df_raw)
 
 years = sorted(df["year"].dropna().unique().astype(int))
 countries = sorted(df["country"].dropna().unique().tolist())
-max_year = int(max(years))
+max_year = int(max(years)) if years else 0
 
 df_world_time = world_time_table(df)
 
@@ -468,7 +464,7 @@ if trained:
 else:
     model_rf, model_metrics, model_importances = None, None, None
 
-# APP + INJECTION CSS
+# APP + CSS
 app = Dash(__name__, external_stylesheets=[THEME], title=APP_TITLE, suppress_callback_exceptions=True)
 server = app.server
 
@@ -492,7 +488,6 @@ app.index_string = f"""
     </body>
 </html>
 """
-
 # LAYOUT
 def sidebar():
     header_image = html.Img(
@@ -512,6 +507,7 @@ def sidebar():
 
         html.Div("Filtres", className="h5", style={"textAlign": "center", "fontWeight": "700"}),
         html.Div(style={"height": "12px"}),
+
         html.Div("Vue", style={"color": COLORS["muted"], "textAlign": "center"}),
         dcc.Dropdown(
             id="scope",
@@ -553,26 +549,137 @@ def sidebar():
 
     bottom_members = html.Div([
         html.Hr(style={"margin": "10px 0"}),
-        html.Div("Membres du groupe", style={"textAlign": "left", "fontWeight": "700", "fontSize": "0.95rem"}),
+        html.Div("Membres du groupe", style={"textAlign": "left", "fontWeight": "700, ", "fontSize": "0.95rem"}),
         html.Div("Joseph Giovanni AGBAHOUNGBA", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
         html.Div("Hippolyte ADECHIAN", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
         html.Div("Elvira Francheska KENGNI", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
-        html.Div("Qais KAZIMI", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
     ], style={"marginTop": "auto"})
 
     return html.Div([top_controls, bottom_members], className="sidebar", style=STYLE_SIDEBAR)
+
+def tab_overview():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        H("Indicateurs principaux"),
+        dbc.Row([
+            dbc.Col(html.Div(id="kpi1"), width=4),
+            dbc.Col(html.Div(id="kpi2"), width=4),
+            dbc.Col(html.Div(id="kpi3"), width=4),
+        ], className="g-2"),
+        dbc.Row([
+            dbc.Col(html.Div(id="kpi4"), width=4),
+            dbc.Col(html.Div(id="kpi5"), width=4),
+            dbc.Col(html.Div(id="kpi6"), width=4),
+        ], className="g-2 mt-1"),
+        html.Hr(),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="map_inc", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="map_mort", config=GRAPH_CONFIG), width=6),
+        ], className="g-2"),
+        interpretation_box(html.Div(id="interp_overview")),
+    ])
+
+def tab_compare():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="rank_inc", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="rank_mort", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="rank_fatal", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="rank_cases", config=GRAPH_CONFIG), width=6),
+        ], className="g-2"),
+        interpretation_box(html.Div(id="interp_compare")),
+    ])
+
+def tab_trends():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="ts_inc", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="ts_mort", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="ch_inc", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="ch_mort", config=GRAPH_CONFIG), width=6),
+        ], className="g-2"),
+        interpretation_box(html.Div(id="interp_trends")),
+    ])
+
+def tab_soc():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        dbc.Row([dbc.Col(dcc.Graph(id="corr", config=GRAPH_CONFIG), width=12)], className="g-2"),
+        html.Div(style={"height": "18px"}),
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="box_inc", config=GRAPH_CONFIG), width=6),
+            dbc.Col(dcc.Graph(id="box_mort", config=GRAPH_CONFIG), width=6),
+        ], className="g-2"),
+        dbc.Card(dbc.CardBody([
+            html.Div("Observations", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
+            html.Div(id="ineq", style={"color": COLORS["muted"], "textAlign": "center"})
+        ], style={"padding": "10px"}), style=STYLE_CARD, className="mt-2"),
+        interpretation_box(html.Div(id="interp_soc")),
+    ])
+
+def tab_risk():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        dbc.Row([
+            dbc.Col(dcc.Graph(id="map_risk", config=GRAPH_CONFIG), width=7),
+            dbc.Col(dcc.Graph(id="rank_risk", config=GRAPH_CONFIG), width=5),
+        ], className="g-2"),
+        dbc.Card(dbc.CardBody([
+            html.Div("Observations", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
+            html.Div(id="risk_txt", style={"color": COLORS["muted"], "textAlign": "center"})
+        ], style={"padding": "10px"}), style=STYLE_CARD, className="mt-2"),
+        interpretation_box(html.Div(id="interp_risk")),
+    ])
+
+def tab_cluster():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        H("Regroupement des pays"),
+        html.Div(style={"height": "10px"}),
+        dcc.Graph(id="cluster_pca", config=GRAPH_CONFIG, style={"height": "480px"}),
+        html.Div("Les marqueurs “X” indiquent les centres de groupes.",
+                 style={"color": COLORS["muted"], "textAlign": "center", "fontSize": "0.93rem"}),
+        html.Div(style={"height": "16px"}),
+        dcc.Graph(id="cluster_prof", config=GRAPH_CONFIG, style={"height": "480px"}),
+        html.Div(id="cluster_comment", style={"color": COLORS["muted"], "textAlign": "center", "fontSize": "0.98rem", "marginTop": "10px"}),
+        interpretation_box(html.Div(id="interp_cluster")),
+    ])
+
+def tab_pred():
+    return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
+        dbc.Row([
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.Div("Modèle de prédiction de la mortalité", className="h6",
+                         style={"textAlign": "center", "fontWeight": "700"}),
+                html.Div(style={"height": "6px"}),
+                dcc.Graph(id="ml_importance", config=GRAPH_CONFIG, style={"height": "420px"}),
+            ]), style=STYLE_CARD), width=6),
+
+            dbc.Col(dbc.Card(dbc.CardBody([
+                html.Div("Prévision des tendances", className="h6",
+                         style={"textAlign": "center", "fontWeight": "700"}),
+                html.Div(style={"height": "6px"}),
+                dcc.Graph(id="forecast", config=GRAPH_CONFIG, style={"height": "420px"}),
+
+                html.Div(QUALITY_TEXT_FIXED,
+                         style={"color": COLORS["muted"], "textAlign": "center", "marginTop": "8px"}),
+
+                html.Hr(),
+                html.Div("Estimation", className="h6",
+                         style={"textAlign": "center", "fontWeight": "700"}),
+                html.Div(id="ml_pred_country", style={"color": COLORS["muted"], "textAlign": "center"})
+            ]), style=STYLE_CARD), width=6),
+        ], className="g-2"),
+        interpretation_box(html.Div(id="interp_pred")),
+    ])
 
 tabs = dcc.Tabs(
     id="tabs",
     value="overview",
     children=[
-        dcc.Tab(label="Vue globale", value="overview", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
-        dcc.Tab(label="Comparaison des pays", value="compare", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
-        dcc.Tab(label="Tendances", value="trends", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
-        dcc.Tab(label="Facteurs socio-économiques", value="soc", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
-        dcc.Tab(label="Risque", value="risk", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
-        dcc.Tab(label="Regroupement des pays", value="cluster", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
-        dcc.Tab(label="Prédiction et prévision", value="pred", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE),
+        dcc.Tab(label="Vue globale", value="overview", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_overview()),
+        dcc.Tab(label="Comparaison des pays", value="compare", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_compare()),
+        dcc.Tab(label="Tendances", value="trends", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_trends()),
+        dcc.Tab(label="Facteurs socio-économiques", value="soc", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_soc()),
+        dcc.Tab(label="Risque", value="risk", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_risk()),
+        dcc.Tab(label="Regroupement des pays", value="cluster", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_cluster()),
+        dcc.Tab(label="Prédiction et prévision", value="pred", style=TAB_STYLE, selected_style=TAB_SELECTED_STYLE, children=tab_pred()),
     ],
     colors={"background": COLORS["tab_idle"], "primary": COLORS["tab_selected"], "border": COLORS["border_soft"]},
     style={"borderRadius": "14px", "overflow": "hidden", "border": f"1px solid {COLORS['border_soft']}"},
@@ -589,130 +696,9 @@ app.layout = dbc.Container(fluid=True, style=STYLE_APP, children=[
 
     dbc.Row([
         dbc.Col(sidebar(), width=3),
-        dbc.Col(html.Div([
-            tabs,
-            html.Div(id="tab_content", className="mt-3")
-        ], style=STYLE_MAIN_PANEL), width=9),
+        dbc.Col(html.Div([tabs], style=STYLE_MAIN_PANEL), width=9),
     ])
 ])
-
-# CONTENU DES BLOCS
-@app.callback(Output("tab_content", "children"), Input("tabs", "value"))
-def render_tab(tab):
-    if tab == "overview":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            H("Indicateurs principaux"),
-            dbc.Row([
-                dbc.Col(html.Div(id="kpi1"), width=4),
-                dbc.Col(html.Div(id="kpi2"), width=4),
-                dbc.Col(html.Div(id="kpi3"), width=4),
-            ], className="g-2"),
-            dbc.Row([
-                dbc.Col(html.Div(id="kpi4"), width=4),
-                dbc.Col(html.Div(id="kpi5"), width=4),
-                dbc.Col(html.Div(id="kpi6"), width=4),
-            ], className="g-2 mt-1"),
-            html.Hr(),
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="map_inc", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="map_mort", config=GRAPH_CONFIG), width=6),
-            ], className="g-2"),
-            interpretation_box(html.Div(id="interp_overview")),
-        ])
-
-    if tab == "compare":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="rank_inc", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="rank_mort", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="rank_fatal", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="rank_cases", config=GRAPH_CONFIG), width=6),
-            ], className="g-2"),
-            interpretation_box(html.Div(id="interp_compare")),
-        ])
-
-    if tab == "trends":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="ts_inc", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="ts_mort", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="ch_inc", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="ch_mort", config=GRAPH_CONFIG), width=6),
-            ], className="g-2"),
-            interpretation_box(html.Div(id="interp_trends")),
-        ])
-
-    if tab == "soc":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            dbc.Row([dbc.Col(dcc.Graph(id="corr", config=GRAPH_CONFIG), width=12)], className="g-2"),
-            html.Div(style={"height": "18px"}),
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="box_inc", config=GRAPH_CONFIG), width=6),
-                dbc.Col(dcc.Graph(id="box_mort", config=GRAPH_CONFIG), width=6),
-            ], className="g-2"),
-            dbc.Card(dbc.CardBody([
-                html.Div("Observations", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
-                html.Div(id="ineq", style={"color": COLORS["muted"], "textAlign": "center"})
-            ], style={"padding": "10px"}), style=STYLE_CARD, className="mt-2"),
-            interpretation_box(html.Div(id="interp_soc")),
-        ])
-
-    if tab == "risk":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            dbc.Row([
-                dbc.Col(dcc.Graph(id="map_risk", config=GRAPH_CONFIG), width=7),
-                dbc.Col(dcc.Graph(id="rank_risk", config=GRAPH_CONFIG), width=5),
-            ], className="g-2"),
-            dbc.Card(dbc.CardBody([
-                html.Div("Observations", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
-                html.Div(id="risk_txt", style={"color": COLORS["muted"], "textAlign": "center"})
-            ], style={"padding": "10px"}), style=STYLE_CARD, className="mt-2"),
-            interpretation_box(html.Div(id="interp_risk")),
-        ])
-
-    if tab == "cluster":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            H("Regroupement des pays"),
-            html.Div(style={"height": "10px"}),
-            dcc.Graph(id="cluster_pca", config=GRAPH_CONFIG, style={"height": "480px"}),
-            html.Div("Les marqueurs “X” indiquent les centres de groupes.",
-                     style={"color": COLORS["muted"], "textAlign": "center", "fontSize": "0.93rem"}),
-            html.Div(style={"height": "16px"}),
-            dcc.Graph(id="cluster_prof", config=GRAPH_CONFIG, style={"height": "480px"}),
-            html.Div(id="cluster_comment", style={"color": COLORS["muted"], "textAlign": "center", "fontSize": "0.98rem", "marginTop": "10px"}),
-            interpretation_box(html.Div(id="interp_cluster")),
-        ])
-
-    if tab == "pred":
-        return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
-            dbc.Row([
-                dbc.Col(dbc.Card(dbc.CardBody([
-                    html.Div("Modèle de prédiction de la mortalité", className="h6",
-                             style={"textAlign": "center", "fontWeight": "700"}),
-                    html.Div(style={"height": "6px"}),
-                    dcc.Graph(id="ml_importance", config=GRAPH_CONFIG, style={"height": "420px"}),
-                ]), style=STYLE_CARD), width=6),
-
-                dbc.Col(dbc.Card(dbc.CardBody([
-                    html.Div("Prévision des tendances", className="h6",
-                             style={"textAlign": "center", "fontWeight": "700"}),
-                    small("Observé vs prévu sur l'horizon choisi."),
-                    html.Div(style={"height": "6px"}),
-                    dcc.Graph(id="forecast", config=GRAPH_CONFIG, style={"height": "420px"}),
-
-                    html.Div(QUALITY_TEXT_FIXED,
-                             style={"color": COLORS["muted"], "textAlign": "center", "marginTop": "8px"}),
-
-                    html.Hr(),
-                    html.Div("Estimation", className="h6",
-                             style={"textAlign": "center", "fontWeight": "700"}),
-                    html.Div(id="ml_pred_country", style={"color": COLORS["muted"], "textAlign": "center"})
-                ]), style=STYLE_CARD), width=6),
-            ], className="g-2"),
-            interpretation_box(html.Div(id="interp_pred")),
-        ])
-
-    return html.Div("Onglet inconnu.", style={"textAlign": "center", "color": COLORS["muted"]})
 
 # SIDEBAR : activer/désactiver pays
 @app.callback(
@@ -725,7 +711,7 @@ def toggle_country(scope):
         return True, ""
     return False, ""
 
-# CALLBACKS
+# VUE GLOBALE
 @app.callback(
     Output("kpi1", "children"), Output("kpi2", "children"), Output("kpi3", "children"),
     Output("kpi4", "children"), Output("kpi5", "children"), Output("kpi6", "children"),
@@ -736,30 +722,8 @@ def toggle_country(scope):
     Input("country_dd", "value"),
 )
 def cb_overview(year, scope, country):
+    year = int(year)
     dy = df[df["year"] == year].copy()
-
-    def world_year_table(df_year: pd.DataFrame) -> pd.DataFrame:
-        d = df_year.dropna(subset=["population"]).copy()
-        if d.empty:
-            return pd.DataFrame()
-        w = d["population"].replace(0, np.nan)
-
-        def wavg(series):
-            s = series.replace([np.inf, -np.inf], np.nan)
-            ok = s.notna() & w.notna()
-            if ok.sum() == 0:
-                return np.nan
-            return float(np.average(s[ok], weights=w[ok]))
-
-        out = {
-            "incidence_asr": wavg(d["incidence_asr"]),
-            "mortality_asr": wavg(d["mortality_asr"]),
-            "fatality_proxy": wavg(d["fatality_proxy"]),
-            "estimated_cases": float(d["estimated_cases"].sum()),
-            "estimated_deaths": float(d["estimated_deaths"].sum()),
-            "risk_score": wavg(d["risk_score"]),
-        }
-        return pd.DataFrame([out])
 
     if scope == "Monde":
         w = world_year_table(dy)
@@ -779,9 +743,9 @@ def cb_overview(year, scope, country):
         top_mort_name = top_mort["country"].iloc[0] if not top_mort.empty else "-"
 
         interp = (
-            f"En {year}, l'incidence moyenne mondiale est d'environ {fmt(inc)} et la mortalité moyenne d'environ {fmt(mort)}."
-            f"Le rapport mortalité/incidence ({fmt(fatal)}) aide à repérer une sévérité relative plus élevée lorsqu'il augmente."
-            f"Les pays les plus marqués sont ({top_inc_name}) qui présente l'incidence maximale et ({top_mort_name}) avec la mortalité maximale."
+            f"En {year}, l'incidence moyenne mondiale est d'environ {fmt(inc)} et la mortalité moyenne d'environ {fmt(mort)}. "
+            f"Le rapport mortalité/incidence ({fmt(fatal)}) aide à repérer une sévérité relative plus élevée lorsqu'il augmente. "
+            f"Les pays les plus marqués sont ({top_inc_name}) pour l'incidence maximale et ({top_mort_name}) pour la mortalité maximale. "
             f"Le score de risque moyen ({fmt(risk)}) synthétise plusieurs dimensions pour orienter la surveillance."
         )
 
@@ -797,41 +761,37 @@ def cb_overview(year, scope, country):
             interp
         )
 
+    # Mode PAYS : KPI du pays sélectionné
+    if not country:
+        return (kpi_card("-", "-"),) * 6 + (empty_fig(), empty_fig()) + ("Sélectionnez un pays.",)
+
     row = dy[dy["country"] == country].head(1)
     if row.empty:
         interp = "Le pays sélectionné n'a pas de données pour cette année."
+        kpis = [kpi_card("-", "-")] * 6
     else:
         r = row.iloc[0]
         interp = (
             f"Pour {country} en {year}, l'incidence est d'environ {fmt(r['incidence_asr'])} et la mortalité d'environ {fmt(r['mortality_asr'])}."
             f"Le rapport mortalité/incidence ({fmt(r['fatality_proxy'])}) aide à situer la charge relative."
         )
-
-    inc_mean = dy["incidence_asr"].mean()
-    mort_mean = dy["mortality_asr"].mean()
-    cases_sum = dy["estimated_cases"].sum()
-    deaths_sum = dy["estimated_deaths"].sum()
-    fatal_mean = dy["fatality_proxy"].replace([np.inf, -np.inf], np.nan).mean()
-    risk_mean = dy["risk_score"].mean()
-
-    top_inc = dy.sort_values("incidence_asr", ascending=False).head(1)
-    top_mort = dy.sort_values("mortality_asr", ascending=False).head(1)
-    top_inc_name = top_inc["country"].iloc[0] if not top_inc.empty else "-"
-    top_mort_name = top_mort["country"].iloc[0] if not top_mort.empty else "-"
+        kpis = [
+            kpi_card("Taux d'incidence standardisé selon l'âge", fmt(r["incidence_asr"]), f"{country} - {year}"),
+            kpi_card("Taux de mortalité standardisé selon l'âge", fmt(r["mortality_asr"]), f"{country} - {year}"),
+            kpi_card("Nombre de cas estimés", fmt(r["estimated_cases"], 0), "≈ taux/100 000 x population"),
+            kpi_card("Nombre de décès estimés", fmt(r["estimated_deaths"], 0), "≈ taux/100 000 x population"),
+            kpi_card("Rapport mortalité/incidence", fmt(r["fatality_proxy"])),
+            kpi_card("Score de risque", fmt(r["risk_score"]), f"Niveau : {r.get('risk_level','-')}"),
+        ]
 
     return (
-        kpi_card("Taux d'incidence standardisé selon l'âge", fmt(inc_mean), f"Année {year}"),
-        kpi_card("Taux de mortalité standardisé selon l'âge", fmt(mort_mean), f"Année {year}"),
-        kpi_card("Nombre de cas estimés", fmt(cases_sum, 0), "≈ taux/100 000 x population"),
-        kpi_card("Nombre de décès estimés", fmt(deaths_sum, 0), "≈ taux/100 000 x population"),
-        kpi_card("Rapport mortalité/incidence", fmt(fatal_mean)),
-        kpi_card("Score de risque", fmt(risk_mean), f"Max incidence : {top_inc_name} | Max mortalité : {top_mort_name}"),
+        kpis[0], kpis[1], kpis[2], kpis[3], kpis[4], kpis[5],
         choropleth(dy, "incidence_asr", f"Incidence standardisée selon l'âge - {year}", height=360),
         choropleth(dy, "mortality_asr", f"Mortalité standardisée selon l'âge - {year}", height=360),
         interp
     )
 
-
+# COMPARAISON
 @app.callback(
     Output("rank_inc", "figure"), Output("rank_mort", "figure"),
     Output("rank_fatal", "figure"), Output("rank_cases", "figure"),
@@ -839,9 +799,10 @@ def cb_overview(year, scope, country):
     Input("year_dd", "value"),
 )
 def cb_compare(year):
+    year = int(year)
     dy = df[df["year"] == year].copy()
 
-    interp = "Les pays extrêmes sont mis en évidence (incidence, mortalité, ratio mortalité/incidence et cas estimés). "
+    interp = "Les pays extrêmes sont mis en évidence (incidence, mortalité, ratio mortalité/incidence et cas estimés)."
     if not dy.empty:
         a = dy.dropna(subset=["incidence_asr"]).sort_values("incidence_asr", ascending=False).head(1)
         b = dy.dropna(subset=["mortality_asr"]).sort_values("mortality_asr", ascending=False).head(1)
@@ -855,7 +816,7 @@ def cb_compare(year):
         interp
     )
 
-
+# TENDANCES (sans KPI)
 @app.callback(
     Output("ts_inc", "figure"), Output("ts_mort", "figure"),
     Output("ch_inc", "figure"), Output("ch_mort", "figure"),
@@ -907,7 +868,7 @@ def cb_trends(scope, country):
     interp = f"Ces courbes permettent de voir l'évolution de l'incidence et de la mortalité pour {country}, et d'identifier les années de rupture."
     return fig_a, fig_b, fig_c, fig_d, interp
 
-
+# SOCIO-ECONOMIQUES (sans KPI)
 @app.callback(
     Output("corr", "figure"), Output("box_inc", "figure"), Output("box_mort", "figure"),
     Output("ineq", "children"),
@@ -915,9 +876,10 @@ def cb_trends(scope, country):
     Input("year_dd", "value")
 )
 def cb_soc(year):
+    year = int(year)
     dy = df[df["year"] == year].copy()
 
-    txt = "—"
+    txt = "-"
     if "gdp_quartile" in dy.columns and dy["gdp_quartile"].notna().any():
         g = dy.dropna(subset=["gdp_quartile", "mortality_asr"]).groupby("gdp_quartile")["mortality_asr"].mean()
         if len(g) >= 2:
@@ -935,7 +897,7 @@ def cb_soc(year):
         interp
     )
 
-
+# RISQUE (sans KPI)
 @app.callback(
     Output("map_risk", "figure"), Output("rank_risk", "figure"), Output("risk_txt", "children"),
     Output("interp_risk", "children"),
@@ -944,6 +906,7 @@ def cb_soc(year):
     Input("country_dd", "value"),
 )
 def cb_risk(year, scope, country):
+    year = int(year)
     dy = df[df["year"] == year].copy()
 
     if scope == "Monde":
@@ -960,7 +923,6 @@ def cb_risk(year, scope, country):
         row = dy[dy["country"] == country].head(1)
         if row.empty:
             txt = "Pays non disponible pour cette année."
-            interp = "Impossible d'interpréter sans données."
         else:
             r = row.iloc[0]
             txt = (
@@ -978,7 +940,7 @@ def cb_risk(year, scope, country):
         interp
     )
 
-
+# CLUSTER
 @app.callback(
     Output("cluster_pca", "figure"),
     Output("cluster_prof", "figure"),
@@ -988,6 +950,7 @@ def cb_risk(year, scope, country):
     Input("k", "value")
 )
 def cb_cluster(year, k):
+    year = int(year)
     out = compute_clusters(df, year, k)
     if out is None:
         return empty_fig("Regroupement indisponible"), empty_fig("Regroupement indisponible"), "-", "Données insuffisantes."
@@ -1023,13 +986,13 @@ def cb_cluster(year, k):
     fig_pca.update_layout(legend_title_text="Groupe")
 
     prof = dcl.groupby("cluster")[cols].mean()
-    z = (prof - prof.mean(axis=0))/(prof.std(axis=0).replace(0, np.nan))
+    z = (prof - prof.mean(axis=0)) / (prof.std(axis=0).replace(0, np.nan))
     z = z.reset_index().melt(id_vars=["cluster"], var_name="variable", value_name="zscore")
     z["cluster"] = z["cluster"].astype(str)
 
     fig_prof = px.bar(z, x="variable", y="zscore", color="cluster", barmode="group", color_discrete_sequence=palette)
     fig_prof.update_layout(height=480)
-    fig_prof = apply_french_layout(fig_prof, f"Profil des groupes (z-scores) — {year}", legend_mode="right")
+    fig_prof = apply_french_layout(fig_prof, f"Profil des groupes (z-scores) - {year}", legend_mode="right")
     fig_prof.update_yaxes(title_text="Niveau relatif (z-score)")
     fig_prof.update_xaxes(title_text="")
     fig_prof.update_layout(legend_title_text="Groupe")
@@ -1042,7 +1005,7 @@ def cb_cluster(year, k):
     interp = "Si les groupes sont bien séparés sur la PCA, cela suggère des profils réellement différents. Le profil en z-scores indique quelles variables distinguent chaque groupe."
     return fig_pca, fig_prof, comment_txt, interp
 
-
+# PRED + FORECAST (sans KPI)
 @app.callback(
     Output("ml_importance", "figure"),
     Output("forecast", "figure"),
@@ -1054,6 +1017,9 @@ def cb_cluster(year, k):
     Input("horizon", "value")
 )
 def cb_pred(scope, country, year, horizon):
+    year = int(year)
+    horizon = int(horizon)
+
     if model_metrics is None:
         imp_fig = empty_fig("Modèle indisponible")
     else:
@@ -1064,16 +1030,14 @@ def cb_pred(scope, country, year, horizon):
         fig.add_trace(go.Scatter(x=d_obs["year"], y=d_obs["incidence_asr"], mode="lines+markers", name="Incidence (observée)"))
         fig.add_trace(go.Scatter(x=d_obs["year"], y=d_obs["mortality_asr"], mode="lines+markers", name="Mortalité (observée)"))
 
+        finc = forecast_trend(d_obs, "incidence_asr", horizon_)
+        fmort = forecast_trend(d_obs, "mortality_asr", horizon_)
         last_year = int(d_obs["year"].max())
-        finc = forecast_trend(d_obs.rename(columns={"incidence_asr": "y"}), "y", horizon_)
-        fmort = forecast_trend(d_obs.rename(columns={"mortality_asr": "y"}), "y", horizon_)
 
         if finc is not None:
-            fig.add_trace(go.Scatter(x=finc["year"], y=finc["pred"], mode="lines+markers",
-                                     name="Incidence (prévue)", line=dict(dash="dash")))
+            fig.add_trace(go.Scatter(x=finc["year"], y=finc["pred"], mode="lines+markers", name="Incidence (prévue)", line=dict(dash="dash")))
         if fmort is not None:
-            fig.add_trace(go.Scatter(x=fmort["year"], y=fmort["pred"], mode="lines+markers",
-                                     name="Mortalité (prévue)", line=dict(dash="dash")))
+            fig.add_trace(go.Scatter(x=fmort["year"], y=fmort["pred"], mode="lines+markers", name="Mortalité (prévue)", line=dict(dash="dash")))
 
         fig.add_vrect(x0=last_year + 0.5, x1=last_year + horizon_ + 0.5, fillcolor="rgba(255,255,255,0.06)", line_width=0)
         fig.add_vline(x=last_year + 0.5, line_width=1, line_dash="dot", line_color="rgba(255,255,255,0.35)")
@@ -1082,8 +1046,6 @@ def cb_pred(scope, country, year, horizon):
         fig = apply_french_layout(fig, title, legend_mode="bottom")
         fig.update_xaxes(title_text="Année")
         fig.update_yaxes(title_text="")
-        fig.add_annotation(x=0.99, y=0.10, xref="paper", yref="paper",
-                           showarrow=False, font=dict(size=11, color=COLORS["muted"]), xanchor="right")
         return fig
 
     if scope == "Monde":
@@ -1119,6 +1081,5 @@ def cb_pred(scope, country, year, horizon):
     interp = "Les variables importantes indiquent les facteurs les plus contributifs. Comparer l'observé à l'estimé aide à repérer des écarts inattendus et à investiguer."
     return imp_fig, fig, pred_txt, interp
 
-# RUN
 if __name__ == "__main__":
     app.run(debug=True)
