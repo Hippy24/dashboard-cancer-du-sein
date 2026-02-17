@@ -1,14 +1,3 @@
-# new1.py — Tableau de bord (Analyse + Prévision)
-# ✅ Sidebar : supprime la ligne sous "Filtres" + supprime le message "Mode monde..."
-# ✅ Sidebar : réduit "Membres du groupe" + noms (reste tout en bas)
-# ✅ KPI (Vue globale) : chiffres en jaune + titres en gras
-# ✅ Titre + sous-titre : gras
-# ✅ Image sidebar : assets/Cancer-du-sein.png (arrondie, quasi pleine largeur)
-# ✅ Dropdown sidebar lisibles (fond clair + texte noir, options noires)
-# ✅ Interprétation : ajoutée en bas de chaque onglet
-# ✅ Graphiques : thème sombre lisible (textes/axes/legendes)
-# ✅ Contours blancs UNIQUEMENT pour les 7 blocs
-
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -31,19 +20,13 @@ import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 
-
-# =========================
-# 0) CONSTANTES
-# =========================
+# Définition des constantes
 DATA_FILENAME = "dataset_final_cancer_sein_IHME_WB_2010_2025.csv"
-APP_TITLE = "Cancer du sein — IHME + Banque mondiale (2010–2025)"
-SUBTITLE = "Tableau de bord épidémiologique — Analyse et prévision"
-QUALITY_TEXT_FIXED = "Qualité du modèle — coefficient de détermination = 0.963 | erreur absolue moyenne = 0.912"
+APP_TITLE = "Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023"
+SUBTITLE = "Sources de données : IHME & Banque mondiale"
+QUALITY_TEXT_FIXED = "Qualité du modèle - coefficient de détermination = 0.963 | erreur absolue moyenne = 0.912"
 
-
-# =========================
-# 1) THÈME / STYLES
-# =========================
+# Choix du thème et des styles
 THEME = dbc.themes.DARKLY
 
 COLORS = {
@@ -55,7 +38,7 @@ COLORS = {
     "text": "#EAF0FF",
     "muted": "rgba(234,240,255,0.75)",
     "grid": "rgba(255,255,255,0.08)",
-    "kpi_value": "#FACC15",  # ✅ jaune
+    "kpi_value": "#FACC15",
     "tab_idle": "#0E1A2F",
     "tab_selected": "#1E3A8A",
     "tab_selected_text": "#FFFFFF",
@@ -118,7 +101,7 @@ TAB_SELECTED_STYLE = {
     "textAlign": "center",
 }
 
-# ✅ CSS dropdown lisibles
+# Définition des options déroulantes avec le CSS
 CSS_DROPDOWN = """
 .sidebar .Select-control { background-color: #F3F6FF !important; border: 1px solid rgba(0,0,0,0.20) !important; }
 .sidebar .Select-placeholder { color: #000000 !important; }
@@ -132,10 +115,8 @@ CSS_DROPDOWN = """
 .sidebar .Select { color:#000000 !important; }
 """
 
-
 def wrap_title(s: str, width: int = 38) -> str:
     return "<br>".join(textwrap.wrap(str(s).strip(), width=width))
-
 
 def apply_french_layout(fig, title: str, legend_mode: str = "bottom"):
     fig.update_layout(
@@ -184,14 +165,11 @@ def apply_french_layout(fig, title: str, legend_mode: str = "bottom"):
         )
     return fig
 
-
 def H(text):
     return html.Div(text, className="h5", style={"marginBottom": "10px", "textAlign": "center"})
 
-
 def small(text):
     return html.Div(text, style={"color": COLORS["muted"], "fontSize": "0.9rem", "textAlign": "center"})
-
 
 def interpretation_box(children):
     return dbc.Card(
@@ -203,10 +181,7 @@ def interpretation_box(children):
         className="mt-2"
     )
 
-
-# =========================
-# 2) DONNÉES
-# =========================
+# Manipulation des données
 def load_data(path: str = DATA_FILENAME) -> pd.DataFrame:
     script_dir = Path(__file__).resolve().parent
     csv_path = Path(path)
@@ -215,16 +190,13 @@ def load_data(path: str = DATA_FILENAME) -> pd.DataFrame:
     if not csv_path.is_file():
         raise FileNotFoundError(f"CSV introuvable: {path}\n→ Mets le fichier ici: {script_dir}")
     df_ = pd.read_csv(csv_path)
-    print(f"✅ Dataset chargé: {csv_path.name}")
     return df_
-
 
 def safe_numeric(df_, cols):
     for c in cols:
         if c in df_.columns:
             df_[c] = pd.to_numeric(df_[c], errors="coerce")
     return df_
-
 
 def add_features(df_: pd.DataFrame) -> pd.DataFrame:
     d = df_.copy()
@@ -265,10 +237,7 @@ def add_features(df_: pd.DataFrame) -> pd.DataFrame:
     )
     return d
 
-
-# =========================
-# 3) MODÈLES
-# =========================
+# Construction des modèles
 def train_mortality_model(df_: pd.DataFrame):
     target = "mortality_asr"
     features = ["incidence_asr", "gdp_per_capita", "health_exp_gdp", "urban_pop_pct", "population"]
@@ -294,7 +263,6 @@ def train_mortality_model(df_: pd.DataFrame):
     }
     importances = pd.Series(model.feature_importances_, index=feats).sort_values(ascending=False)
     return model, metrics, importances
-
 
 def forecast_trend(df_country: pd.DataFrame, y_col: str, horizon: int):
     dc = df_country.dropna(subset=["year", y_col]).copy()
@@ -341,9 +309,7 @@ def compute_clusters(df_: pd.DataFrame, year: int, k: int):
     return d, cols, float(var[0]), float(var[1]), centers
 
 
-# =========================
-# 4) FIGURES
-# =========================
+# Création des figures
 def empty_fig(msg="Données insuffisantes"):
     fig = go.Figure()
     fig.add_annotation(text=msg, x=0.5, y=0.5, showarrow=False, font=dict(color=COLORS["text"]))
@@ -352,15 +318,13 @@ def empty_fig(msg="Données insuffisantes"):
     fig.update_layout(height=300, margin=dict(l=10, r=10, t=40, b=10), paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
-
 def fmt(x, digits=2):
     try:
         if x is None or (isinstance(x, float) and np.isnan(x)):
-            return "—"
+            return "-"
         return f"{x:,.{digits}f}"
     except Exception:
-        return "—"
-
+        return "-"
 
 def kpi_card(title, value, sub=""):
     return dbc.Card(
@@ -372,14 +336,12 @@ def kpi_card(title, value, sub=""):
         style=STYLE_CARD
     )
 
-
 def choropleth(dy, col, title, height=360):
     if "iso3" not in dy.columns or col not in dy.columns:
         return empty_fig("Variable indisponible")
     fig = px.choropleth(dy, locations="iso3", color=col, hover_name="country", projection="natural earth")
     fig.update_layout(height=height)
     return apply_french_layout(fig, title, legend_mode="right")
-
 
 def rank_bar(dy, col, title, topn=10, height=360):
     if col not in dy.columns:
@@ -393,7 +355,6 @@ def rank_bar(dy, col, title, topn=10, height=360):
     fig.update_yaxes(title_text="")
     return apply_french_layout(fig, title, legend_mode="right")
 
-
 def ts_line(dc, col, title, height=270):
     if col not in dc.columns:
         return empty_fig("Variable indisponible")
@@ -406,7 +367,6 @@ def ts_line(dc, col, title, height=270):
     fig.update_yaxes(title_text="")
     return apply_french_layout(fig, title, legend_mode="right")
 
-
 def change_bar(dc, col, title, height=270):
     if col not in dc.columns:
         return empty_fig("Variable indisponible")
@@ -418,7 +378,6 @@ def change_bar(dc, col, title, height=270):
     fig.update_xaxes(title_text="Année")
     fig.update_yaxes(title_text="Variation (%)")
     return apply_french_layout(fig, title, legend_mode="right")
-
 
 def corr_heat(dy, title, height=310):
     cols = ["incidence_asr", "mortality_asr", "fatality_proxy", "gdp_per_capita", "health_exp_gdp", "urban_pop_pct"]
@@ -433,7 +392,6 @@ def corr_heat(dy, title, height=310):
     fig.update_layout(height=height)
     return apply_french_layout(fig, title, legend_mode="right")
 
-
 def box_by_quartile(dy, col, title, height=310):
     if "gdp_quartile" not in dy.columns or col not in dy.columns:
         return empty_fig("Quartiles indisponibles")
@@ -446,7 +404,6 @@ def box_by_quartile(dy, col, title, height=310):
     fig.update_yaxes(title_text="")
     return apply_french_layout(fig, title, legend_mode="right")
 
-
 def importance_fig(importances):
     if importances is None or getattr(importances, "empty", True):
         return empty_fig("Modèle indisponible")
@@ -457,12 +414,9 @@ def importance_fig(importances):
     fig.update_layout(height=340, showlegend=False)
     fig.update_xaxes(title_text="Importance (relative)")
     fig.update_yaxes(title_text="")
-    return apply_french_layout(fig, "Variables les plus importantes (modèle)", legend_mode="right")
+    return apply_french_layout(fig, "Variables les plus importantes", legend_mode="right")
 
-
-# =========================
-# 5) AGRÉGATS MONDE
-# =========================
+# AGRÉGATS MONDE
 def world_year_table(df_year: pd.DataFrame) -> pd.DataFrame:
     d = df_year.dropna(subset=["population"]).copy()
     if d.empty:
@@ -498,10 +452,7 @@ def world_time_table(df_all: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
     return pd.concat(rows, ignore_index=True).sort_values("year")
 
-
-# =========================
-# 6) INIT DONNÉES
-# =========================
+# INIT DONNÉES
 df_raw = load_data(DATA_FILENAME)
 df = add_features(df_raw)
 
@@ -517,10 +468,7 @@ if trained:
 else:
     model_rf, model_metrics, model_importances = None, None, None
 
-
-# =========================
-# 7) APP + INJECTION CSS
-# =========================
+# APP + INJECTION CSS
 app = Dash(__name__, external_stylesheets=[THEME], title=APP_TITLE, suppress_callback_exceptions=True)
 server = app.server
 
@@ -545,10 +493,7 @@ app.index_string = f"""
 </html>
 """
 
-
-# =========================
-# 8) LAYOUT
-# =========================
+# LAYOUT
 def sidebar():
     header_image = html.Img(
         src=app.get_asset_url("Cancer-du-sein.png"),
@@ -566,10 +511,7 @@ def sidebar():
         header_image,
 
         html.Div("Filtres", className="h5", style={"textAlign": "center", "fontWeight": "700"}),
-
-        # ✅ on supprime la ligne sous "Filtres" + on ajoute juste un petit espace
         html.Div(style={"height": "12px"}),
-
         html.Div("Vue", style={"color": COLORS["muted"], "textAlign": "center"}),
         dcc.Dropdown(
             id="scope",
@@ -596,7 +538,6 @@ def sidebar():
             clearable=False,
         ),
 
-        # ✅ on garde l'ID (évite erreurs) mais on le cache : plus de message "Mode monde..."
         html.Div(id="country_hint", style={"display": "none"}),
 
         html.Div(style={"height": "10px"}),
@@ -606,11 +547,10 @@ def sidebar():
         dcc.Slider(id="horizon", min=3, max=10, step=1, value=5, marks={i: str(i) for i in range(3, 11)}),
 
         html.Div(style={"height": "10px"}),
-        html.Div("Nombre de groupes (regroupement)", style={"color": COLORS["muted"], "textAlign": "center"}),
+        html.Div("Nombre de groupes", style={"color": COLORS["muted"], "textAlign": "center"}),
         dcc.Slider(id="k", min=3, max=8, step=1, value=4, marks={i: str(i) for i in range(3, 9)}),
     ])
 
-    # ✅ taille réduite pour tenir en bas
     bottom_members = html.Div([
         html.Hr(style={"margin": "10px 0"}),
         html.Div("Membres du groupe", style={"textAlign": "left", "fontWeight": "700", "fontSize": "0.95rem"}),
@@ -621,7 +561,6 @@ def sidebar():
     ], style={"marginTop": "auto"})
 
     return html.Div([top_controls, bottom_members], className="sidebar", style=STYLE_SIDEBAR)
-
 
 tabs = dcc.Tabs(
     id="tabs",
@@ -644,7 +583,7 @@ app.layout = dbc.Container(fluid=True, style=STYLE_APP, children=[
     dbc.Row([
         dbc.Col(html.Div([
             html.Div(APP_TITLE, className="h3", style={"marginBottom": "2px", "textAlign": "center", "fontWeight": "800"}),
-            html.Div(SUBTITLE, style={"color": COLORS["muted"], "textAlign": "center", "fontWeight": "700"}),
+            html.Div(SUBTITLE, style={"color": COLORS["muted"], "textAlign": "center", "fontWeight": "600"}),
         ]), width=12),
     ], className="mb-3"),
 
@@ -657,10 +596,7 @@ app.layout = dbc.Container(fluid=True, style=STYLE_APP, children=[
     ])
 ])
 
-
-# =========================
-# 9) CONTENU DES BLOCS
-# =========================
+# CONTENU DES BLOCS
 @app.callback(Output("tab_content", "children"), Input("tabs", "value"))
 def render_tab(tab):
     if tab == "overview":
@@ -715,7 +651,7 @@ def render_tab(tab):
                 dbc.Col(dcc.Graph(id="box_mort", config=GRAPH_CONFIG), width=6),
             ], className="g-2"),
             dbc.Card(dbc.CardBody([
-                html.Div("Lecture des inégalités", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
+                html.Div("Observations", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
                 html.Div(id="ineq", style={"color": COLORS["muted"], "textAlign": "center"})
             ], style={"padding": "10px"}), style=STYLE_CARD, className="mt-2"),
             interpretation_box(html.Div(id="interp_soc")),
@@ -728,7 +664,7 @@ def render_tab(tab):
                 dbc.Col(dcc.Graph(id="rank_risk", config=GRAPH_CONFIG), width=5),
             ], className="g-2"),
             dbc.Card(dbc.CardBody([
-                html.Div("Synthèse", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
+                html.Div("Observations", className="h6", style={"textAlign": "center", "fontWeight": "700"}),
                 html.Div(id="risk_txt", style={"color": COLORS["muted"], "textAlign": "center"})
             ], style={"padding": "10px"}), style=STYLE_CARD, className="mt-2"),
             interpretation_box(html.Div(id="interp_risk")),
@@ -737,10 +673,9 @@ def render_tab(tab):
     if tab == "cluster":
         return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
             H("Regroupement des pays"),
-            small("Objectif : identifier des groupes de pays aux profils similaires (incidence, mortalité et variables socio-économiques)."),
             html.Div(style={"height": "10px"}),
             dcc.Graph(id="cluster_pca", config=GRAPH_CONFIG, style={"height": "480px"}),
-            html.Div("Survolez un point pour afficher le pays. Les marqueurs “X” indiquent les centres de groupes.",
+            html.Div("Les marqueurs “X” indiquent les centres de groupes.",
                      style={"color": COLORS["muted"], "textAlign": "center", "fontSize": "0.93rem"}),
             html.Div(style={"height": "16px"}),
             dcc.Graph(id="cluster_prof", config=GRAPH_CONFIG, style={"height": "480px"}),
@@ -754,7 +689,6 @@ def render_tab(tab):
                 dbc.Col(dbc.Card(dbc.CardBody([
                     html.Div("Modèle de prédiction de la mortalité", className="h6",
                              style={"textAlign": "center", "fontWeight": "700"}),
-                    small("Importance des variables utilisées par le modèle."),
                     html.Div(style={"height": "6px"}),
                     dcc.Graph(id="ml_importance", config=GRAPH_CONFIG, style={"height": "420px"}),
                 ]), style=STYLE_CARD), width=6),
@@ -762,7 +696,7 @@ def render_tab(tab):
                 dbc.Col(dbc.Card(dbc.CardBody([
                     html.Div("Prévision des tendances", className="h6",
                              style={"textAlign": "center", "fontWeight": "700"}),
-                    small("Observé vs prévu sur l’horizon choisi."),
+                    small("Observé vs prévu sur l'horizon choisi."),
                     html.Div(style={"height": "6px"}),
                     dcc.Graph(id="forecast", config=GRAPH_CONFIG, style={"height": "420px"}),
 
@@ -770,7 +704,7 @@ def render_tab(tab):
                              style={"color": COLORS["muted"], "textAlign": "center", "marginTop": "8px"}),
 
                     html.Hr(),
-                    html.Div("Estimation pour le pays et l’année sélectionnés", className="h6",
+                    html.Div("Estimation", className="h6",
                              style={"textAlign": "center", "fontWeight": "700"}),
                     html.Div(id="ml_pred_country", style={"color": COLORS["muted"], "textAlign": "center"})
                 ]), style=STYLE_CARD), width=6),
@@ -780,25 +714,18 @@ def render_tab(tab):
 
     return html.Div("Onglet inconnu.", style={"textAlign": "center", "color": COLORS["muted"]})
 
-
-# =========================
-# 10) SIDEBAR : activer/désactiver pays
-# =========================
+# SIDEBAR : activer/désactiver pays
 @app.callback(
     Output("country_dd", "disabled"),
     Output("country_hint", "children"),
     Input("scope", "value"),
 )
 def toggle_country(scope):
-    # ✅ supprime complètement le message "Mode monde..."
     if scope == "Monde":
         return True, ""
     return False, ""
 
-
-# =========================
-# 11) CALLBACKS (données + interprétations)
-# =========================
+# CALLBACKS
 @app.callback(
     Output("kpi1", "children"), Output("kpi2", "children"), Output("kpi3", "children"),
     Output("kpi4", "children"), Output("kpi5", "children"), Output("kpi6", "children"),
@@ -837,7 +764,7 @@ def cb_overview(year, scope, country):
     if scope == "Monde":
         w = world_year_table(dy)
         if w.empty:
-            return (kpi_card("—", "—"),) * 6 + (empty_fig(), empty_fig()) + ("Données insuffisantes.",)
+            return (kpi_card("-", "-"),) * 6 + (empty_fig(), empty_fig()) + ("Données insuffisantes.",)
 
         inc = float(w["incidence_asr"].iloc[0])
         mort = float(w["mortality_asr"].iloc[0])
@@ -848,35 +775,35 @@ def cb_overview(year, scope, country):
 
         top_inc = dy.sort_values("incidence_asr", ascending=False).head(1)
         top_mort = dy.sort_values("mortality_asr", ascending=False).head(1)
-        top_inc_name = top_inc["country"].iloc[0] if not top_inc.empty else "—"
-        top_mort_name = top_mort["country"].iloc[0] if not top_mort.empty else "—"
+        top_inc_name = top_inc["country"].iloc[0] if not top_inc.empty else "-"
+        top_mort_name = top_mort["country"].iloc[0] if not top_mort.empty else "-"
 
         interp = (
-            f"En {year}, l’incidence moyenne mondiale est d’environ {fmt(inc)} et la mortalité moyenne d’environ {fmt(mort)}. "
-            f"Le rapport mortalité/incidence ({fmt(fatal)}) aide à repérer une sévérité relative plus élevée lorsqu’il augmente. "
-            f"Les pays les plus marqués sont : incidence maximale ({top_inc_name}) et mortalité maximale ({top_mort_name}). "
+            f"En {year}, l'incidence moyenne mondiale est d'environ {fmt(inc)} et la mortalité moyenne d'environ {fmt(mort)}."
+            f"Le rapport mortalité/incidence ({fmt(fatal)}) aide à repérer une sévérité relative plus élevée lorsqu'il augmente."
+            f"Les pays les plus marqués sont ({top_inc_name}) qui présente l'incidence maximale et ({top_mort_name}) avec la mortalité maximale."
             f"Le score de risque moyen ({fmt(risk)}) synthétise plusieurs dimensions pour orienter la surveillance."
         )
 
         return (
-            kpi_card("Taux d’incidence standardisé selon l’âge (moyenne)", fmt(inc), f"Année {year} — Monde"),
-            kpi_card("Taux de mortalité standardisé selon l’âge (moyenne)", fmt(mort), f"Année {year} — Monde"),
-            kpi_card("Nombre de cas estimés (total)", fmt(cases, 0), "≈ taux/100 000 × population"),
-            kpi_card("Nombre de décès estimés (total)", fmt(deaths, 0), "≈ taux/100 000 × population"),
-            kpi_card("Rapport mortalité / incidence (proxy)", fmt(fatal), "Interprétation prudente"),
-            kpi_card("Score de risque (moyenne)", fmt(risk), f"Max incidence : {top_inc_name} | Max mortalité : {top_mort_name}"),
-            choropleth(dy, "incidence_asr", f"Incidence standardisée selon l’âge — {year}", height=360),
-            choropleth(dy, "mortality_asr", f"Mortalité standardisée selon l’âge — {year}", height=360),
+            kpi_card("Taux d'incidence standardisé selon l'âge", fmt(inc), f"Année {year} - Monde"),
+            kpi_card("Taux de mortalité standardisé selon l'âge", fmt(mort), f"Année {year} - Monde"),
+            kpi_card("Nombre de cas estimés", fmt(cases, 0), "≈ taux/100 000 x population"),
+            kpi_card("Nombre de décès estimés", fmt(deaths, 0), "≈ taux/100 000 x population"),
+            kpi_card("Rapport mortalité/incidence", fmt(fatal)),
+            kpi_card("Score de risque", fmt(risk), f"Max incidence : {top_inc_name} | Max mortalité : {top_mort_name}"),
+            choropleth(dy, "incidence_asr", f"Incidence standardisée selon l'âge - {year}", height=360),
+            choropleth(dy, "mortality_asr", f"Mortalité standardisée selon l'âge - {year}", height=360),
             interp
         )
 
     row = dy[dy["country"] == country].head(1)
     if row.empty:
-        interp = "Le pays sélectionné n’a pas de données pour cette année."
+        interp = "Le pays sélectionné n'a pas de données pour cette année."
     else:
         r = row.iloc[0]
         interp = (
-            f"Pour {country} en {year}, l’incidence est d’environ {fmt(r['incidence_asr'])} et la mortalité d’environ {fmt(r['mortality_asr'])}. "
+            f"Pour {country} en {year}, l'incidence est d'environ {fmt(r['incidence_asr'])} et la mortalité d'environ {fmt(r['mortality_asr'])}."
             f"Le rapport mortalité/incidence ({fmt(r['fatality_proxy'])}) aide à situer la charge relative."
         )
 
@@ -889,18 +816,18 @@ def cb_overview(year, scope, country):
 
     top_inc = dy.sort_values("incidence_asr", ascending=False).head(1)
     top_mort = dy.sort_values("mortality_asr", ascending=False).head(1)
-    top_inc_name = top_inc["country"].iloc[0] if not top_inc.empty else "—"
-    top_mort_name = top_mort["country"].iloc[0] if not top_mort.empty else "—"
+    top_inc_name = top_inc["country"].iloc[0] if not top_inc.empty else "-"
+    top_mort_name = top_mort["country"].iloc[0] if not top_mort.empty else "-"
 
     return (
-        kpi_card("Taux d’incidence standardisé selon l’âge (moyenne)", fmt(inc_mean), f"Année {year}"),
-        kpi_card("Taux de mortalité standardisé selon l’âge (moyenne)", fmt(mort_mean), f"Année {year}"),
-        kpi_card("Nombre de cas estimés (total)", fmt(cases_sum, 0), "≈ taux/100 000 × population"),
-        kpi_card("Nombre de décès estimés (total)", fmt(deaths_sum, 0), "≈ taux/100 000 × population"),
-        kpi_card("Rapport mortalité / incidence (proxy)", fmt(fatal_mean), "Interprétation prudente"),
-        kpi_card("Score de risque (moyenne)", fmt(risk_mean), f"Max incidence : {top_inc_name} | Max mortalité : {top_mort_name}"),
-        choropleth(dy, "incidence_asr", f"Incidence standardisée selon l’âge — {year}", height=360),
-        choropleth(dy, "mortality_asr", f"Mortalité standardisée selon l’âge — {year}", height=360),
+        kpi_card("Taux d'incidence standardisé selon l'âge", fmt(inc_mean), f"Année {year}"),
+        kpi_card("Taux de mortalité standardisé selon l'âge", fmt(mort_mean), f"Année {year}"),
+        kpi_card("Nombre de cas estimés", fmt(cases_sum, 0), "≈ taux/100 000 x population"),
+        kpi_card("Nombre de décès estimés", fmt(deaths_sum, 0), "≈ taux/100 000 x population"),
+        kpi_card("Rapport mortalité/incidence", fmt(fatal_mean)),
+        kpi_card("Score de risque", fmt(risk_mean), f"Max incidence : {top_inc_name} | Max mortalité : {top_mort_name}"),
+        choropleth(dy, "incidence_asr", f"Incidence standardisée selon l'âge - {year}", height=360),
+        choropleth(dy, "mortality_asr", f"Mortalité standardisée selon l'âge - {year}", height=360),
         interp
     )
 
@@ -914,17 +841,17 @@ def cb_overview(year, scope, country):
 def cb_compare(year):
     dy = df[df["year"] == year].copy()
 
-    interp = "Cette page met en évidence les pays aux extrêmes (incidence, mortalité, ratio mortalité/incidence et cas estimés). "
+    interp = "Les pays extrêmes sont mis en évidence (incidence, mortalité, ratio mortalité/incidence et cas estimés). "
     if not dy.empty:
         a = dy.dropna(subset=["incidence_asr"]).sort_values("incidence_asr", ascending=False).head(1)
         b = dy.dropna(subset=["mortality_asr"]).sort_values("mortality_asr", ascending=False).head(1)
         if not a.empty and not b.empty:
-            interp += f"En {year}, l’incidence la plus élevée est observée dans {a['country'].iloc[0]} et la mortalité la plus élevée dans {b['country'].iloc[0]}."
+            interp += f"En {year}, l'incidence la plus élevée est observée dans {a['country'].iloc[0]} et la mortalité la plus élevée dans {b['country'].iloc[0]}."
     return (
-        rank_bar(dy, "incidence_asr", f"Pays avec les incidences les plus élevées — {year}", topn=10, height=360),
-        rank_bar(dy, "mortality_asr", f"Pays avec les mortalités les plus élevées — {year}", topn=10, height=360),
-        rank_bar(dy, "fatality_proxy", f"Pays avec le rapport mortalité / incidence le plus élevé — {year}", topn=10, height=360),
-        rank_bar(dy, "estimated_cases", f"Pays avec le plus grand nombre de cas estimés — {year}", topn=10, height=360),
+        rank_bar(dy, "incidence_asr", f"Pays et incidences les plus élevées - {year}", topn=10, height=360),
+        rank_bar(dy, "mortality_asr", f"Pays et mortalités les plus élevées - {year}", topn=10, height=360),
+        rank_bar(dy, "fatality_proxy", f"Pays et rapport mortalité/incidence le plus élevé - {year}", topn=10, height=360),
+        rank_bar(dy, "estimated_cases", f"Pays et le plus grand nombre de cas estimés - {year}", topn=10, height=360),
         interp
     )
 
@@ -944,13 +871,13 @@ def cb_trends(scope, country):
         fig1.update_layout(height=270, showlegend=False)
         fig1.update_xaxes(title_text="Année")
         fig1.update_yaxes(title_text="")
-        fig1 = apply_french_layout(fig1, "Monde — incidence standardisée selon l’âge", legend_mode="right")
+        fig1 = apply_french_layout(fig1, "Monde - incidence standardisée selon l'âge", legend_mode="right")
 
         fig2 = px.line(df_world_time, x="year", y="mortality_asr", markers=True)
         fig2.update_layout(height=270, showlegend=False)
         fig2.update_xaxes(title_text="Année")
         fig2.update_yaxes(title_text="")
-        fig2 = apply_french_layout(fig2, "Monde — mortalité standardisée selon l’âge", legend_mode="right")
+        fig2 = apply_french_layout(fig2, "Monde - mortalité standardisée selon l'âge", legend_mode="right")
 
         tmp = df_world_time.copy()
         tmp["annual_change_incidence_pct"] = tmp["incidence_asr"].pct_change() * 100
@@ -960,24 +887,24 @@ def cb_trends(scope, country):
         fig3.update_layout(height=270, showlegend=False)
         fig3.update_xaxes(title_text="Année")
         fig3.update_yaxes(title_text="Variation (%)")
-        fig3 = apply_french_layout(fig3, "Monde — variation annuelle de l’incidence (%)", legend_mode="right")
+        fig3 = apply_french_layout(fig3, "Monde - variation annuelle de l'incidence (%)", legend_mode="right")
 
         fig4 = px.bar(tmp.dropna(subset=["annual_change_mortality_pct"]), x="year", y="annual_change_mortality_pct")
         fig4.update_layout(height=270, showlegend=False)
         fig4.update_xaxes(title_text="Année")
         fig4.update_yaxes(title_text="Variation (%)")
-        fig4 = apply_french_layout(fig4, "Monde — variation annuelle de la mortalité (%)", legend_mode="right")
+        fig4 = apply_french_layout(fig4, "Monde - variation annuelle de la mortalité (%)", legend_mode="right")
 
-        interp = "Les variations annuelles repèrent les années de changement marqué. Une hausse persistante suggère d’explorer l’accès au dépistage et aux soins."
+        interp = "Les variations annuelles repèrent les années de changement marqué. Une hausse persistante suggère d'explorer l'accès au dépistage et aux soins."
         return fig1, fig2, fig3, fig4, interp
 
     dc = df[df["country"] == country].copy()
-    fig_a = ts_line(dc, "incidence_asr", f"{country} — incidence standardisée selon l’âge", height=270)
-    fig_b = ts_line(dc, "mortality_asr", f"{country} — mortalité standardisée selon l’âge", height=270)
-    fig_c = change_bar(dc, "annual_change_incidence_pct", f"{country} — variation annuelle de l’incidence (%)", height=270)
-    fig_d = change_bar(dc, "annual_change_mortality_pct", f"{country} — variation annuelle de la mortalité (%)", height=270)
+    fig_a = ts_line(dc, "incidence_asr", f"{country} - incidence standardisée selon l'âge", height=270)
+    fig_b = ts_line(dc, "mortality_asr", f"{country} - mortalité standardisée selon l'âge", height=270)
+    fig_c = change_bar(dc, "annual_change_incidence_pct", f"{country} - variation annuelle de l'incidence (%)", height=270)
+    fig_d = change_bar(dc, "annual_change_mortality_pct", f"{country} - variation annuelle de la mortalité (%)", height=270)
 
-    interp = f"Ces courbes permettent de voir l’évolution de l’incidence et de la mortalité pour {country}, et d’identifier les années de rupture."
+    interp = f"Ces courbes permettent de voir l'évolution de l'incidence et de la mortalité pour {country}, et d'identifier les années de rupture."
     return fig_a, fig_b, fig_c, fig_d, interp
 
 
@@ -995,15 +922,15 @@ def cb_soc(year):
         g = dy.dropna(subset=["gdp_quartile", "mortality_asr"]).groupby("gdp_quartile")["mortality_asr"].mean()
         if len(g) >= 2:
             txt = (
-                f"En {year}, la mortalité moyenne en Q1 est d’environ {fmt(g.iloc[0])} "
+                f"En {year}, la mortalité moyenne en Q1 est d'environ {fmt(g.iloc[0])} "
                 f"contre {fmt(g.iloc[-1])} en Q4 (écart ≈ {fmt(g.iloc[0]-g.iloc[-1])})."
             )
 
-    interp = "Les corrélations et les distributions par quartiles aident à repérer des inégalités. Une différence nette Q1–Q4 peut indiquer un accès inégal au dépistage/traitement."
+    interp = "Les corrélations et les distributions par quartiles aident à repérer des inégalités. Une différence nette Q1-Q4 peut indiquer un accès inégal au dépistage/traitement."
     return (
-        corr_heat(dy, f"Corrélations (année {year})", height=310),
-        box_by_quartile(dy, "incidence_asr", f"Incidence selon le produit intérieur brut par habitant (année {year})", height=310),
-        box_by_quartile(dy, "mortality_asr", f"Mortalité selon le produit intérieur brut par habitant (année {year})", height=310),
+        corr_heat(dy, f"Corrélations - {year}", height=310),
+        box_by_quartile(dy, "incidence_asr", f"Incidence selon le produit intérieur brut par habitant - {year}", height=310),
+        box_by_quartile(dy, "mortality_asr", f"Mortalité selon le produit intérieur brut par habitant - {year}", height=310),
         txt,
         interp
     )
@@ -1022,9 +949,9 @@ def cb_risk(year, scope, country):
     if scope == "Monde":
         w = world_year_table(dy)
         if w.empty:
-            return empty_fig(), empty_fig(), "—", "Données insuffisantes."
+            return empty_fig(), empty_fig(), "-", "Données insuffisantes."
         txt = (
-            f"Monde — score de risque moyen ≈ {fmt(float(w['risk_score'].iloc[0]))} | "
+            f"Monde - score de risque moyen ≈ {fmt(float(w['risk_score'].iloc[0]))} | "
             f"incidence moyenne ≈ {fmt(float(w['incidence_asr'].iloc[0]))} | "
             f"mortalité moyenne ≈ {fmt(float(w['mortality_asr'].iloc[0]))}."
         )
@@ -1033,20 +960,20 @@ def cb_risk(year, scope, country):
         row = dy[dy["country"] == country].head(1)
         if row.empty:
             txt = "Pays non disponible pour cette année."
-            interp = "Impossible d’interpréter sans données."
+            interp = "Impossible d'interpréter sans données."
         else:
             r = row.iloc[0]
             txt = (
-                f"{country} — incidence {fmt(r['incidence_asr'])} | mortalité {fmt(r['mortality_asr'])} | "
-                f"rapport mortalité / incidence {fmt(r['fatality_proxy'])} | "
+                f"{country} - incidence {fmt(r['incidence_asr'])} | mortalité {fmt(r['mortality_asr'])} | "
+                f"rapport mortalité/incidence {fmt(r['fatality_proxy'])} | "
                 f"variation annuelle de la mortalité {fmt(r['annual_change_mortality_pct'])} | "
-                f"score {fmt(r['risk_score'])} ({r.get('risk_level','—')})."
+                f"score {fmt(r['risk_score'])} ({r.get('risk_level','-')})."
             )
             interp = "Un score élevé reflète une combinaison défavorable (mortalité, ratio mortalité/incidence, aggravation récente)."
 
     return (
-        choropleth(dy, "risk_score", f"Score de risque — {year}", height=360),
-        rank_bar(dy, "risk_score", f"Pays avec les scores de risque les plus élevés — {year}", topn=10, height=360),
+        choropleth(dy, "risk_score", f"Score de risque - {year}", height=360),
+        rank_bar(dy, "risk_score", f"Pays avec les scores de risque les plus élevés - {year}", topn=10, height=360),
         txt,
         interp
     )
@@ -1063,7 +990,7 @@ def cb_risk(year, scope, country):
 def cb_cluster(year, k):
     out = compute_clusters(df, year, k)
     if out is None:
-        return empty_fig("Regroupement indisponible"), empty_fig("Regroupement indisponible"), "—", "Données insuffisantes."
+        return empty_fig("Regroupement indisponible"), empty_fig("Regroupement indisponible"), "-", "Données insuffisantes."
 
     dcl, cols, v1, v2, centers = out
     palette = px.colors.qualitative.Set2
@@ -1090,13 +1017,13 @@ def cb_cluster(year, k):
     )
 
     fig_pca.update_layout(height=480)
-    fig_pca = apply_french_layout(fig_pca, f"Regroupement (K={k}) — PCA (variance {v1:.2f} et {v2:.2f})", legend_mode="right")
+    fig_pca = apply_french_layout(fig_pca, f"Regroupement (K={k}) - PCA (variance {v1:.2f} et {v2:.2f})", legend_mode="right")
     fig_pca.update_xaxes(title_text="Axe PCA 1")
     fig_pca.update_yaxes(title_text="Axe PCA 2")
     fig_pca.update_layout(legend_title_text="Groupe")
 
     prof = dcl.groupby("cluster")[cols].mean()
-    z = (prof - prof.mean(axis=0)) / (prof.std(axis=0).replace(0, np.nan))
+    z = (prof - prof.mean(axis=0))/(prof.std(axis=0).replace(0, np.nan))
     z = z.reset_index().melt(id_vars=["cluster"], var_name="variable", value_name="zscore")
     z["cluster"] = z["cluster"].astype(str)
 
@@ -1155,26 +1082,26 @@ def cb_pred(scope, country, year, horizon):
         fig = apply_french_layout(fig, title, legend_mode="bottom")
         fig.update_xaxes(title_text="Année")
         fig.update_yaxes(title_text="")
-        fig.add_annotation(x=0.99, y=0.10, xref="paper", yref="paper", text="Zone ombrée : période prévue",
+        fig.add_annotation(x=0.99, y=0.10, xref="paper", yref="paper",
                            showarrow=False, font=dict(size=11, color=COLORS["muted"]), xanchor="right")
         return fig
 
     if scope == "Monde":
         if df_world_time.empty:
-            return imp_fig, empty_fig("Aucune donnée"), "—", "Données insuffisantes."
+            return imp_fig, empty_fig("Aucune donnée"), "-", "Données insuffisantes."
         d_obs = df_world_time.dropna(subset=["year", "incidence_asr", "mortality_asr"]).sort_values("year")
-        fig = build_forecast_fig(d_obs, f"Monde — prévision des tendances (horizon {horizon} ans)", horizon)
+        fig = build_forecast_fig(d_obs, f"Monde - prévision des tendances (horizon {horizon} ans)", horizon)
         interp = "La prévision prolonge les tendances historiques : utile pour des scénarios, mais sensible aux ruptures et changements de politique de santé."
         return imp_fig, fig, "Estimation par modèle : non affichée pour la vue monde.", interp
 
     dc = df[df["country"] == country].copy()
     d_obs = dc.dropna(subset=["year", "incidence_asr", "mortality_asr"]).sort_values("year")
     if d_obs.empty:
-        return imp_fig, empty_fig("Aucune donnée"), "—", "Aucune donnée."
+        return imp_fig, empty_fig("Aucune donnée"), "-", "Aucune donnée."
 
-    fig = build_forecast_fig(d_obs, f"{country} — prévision des tendances (horizon {horizon} ans)", horizon)
+    fig = build_forecast_fig(d_obs, f"{country} - prévision des tendances (horizon {horizon} ans)", horizon)
 
-    pred_txt = "—"
+    pred_txt = "-"
     if model_rf is not None and model_metrics is not None:
         feats = model_metrics["features"]
         row = df[(df["country"] == country) & (df["year"] == year)].head(1)
@@ -1189,12 +1116,9 @@ def cb_pred(scope, country, year, horizon):
         else:
             pred_txt = "Estimation impossible : données insuffisantes pour ce pays et cette année."
 
-    interp = "Les variables importantes indiquent les facteurs les plus contributifs. Comparer l’observé à l’estimé aide à repérer des écarts inattendus et à investiguer."
+    interp = "Les variables importantes indiquent les facteurs les plus contributifs. Comparer l'observé à l'estimé aide à repérer des écarts inattendus et à investiguer."
     return imp_fig, fig, pred_txt, interp
 
-
-# =========================
-# 12) RUN
-# =========================
+# RUN
 if __name__ == "__main__":
     app.run(debug=True)
