@@ -95,6 +95,75 @@ Elles permettent d’identifier :
 - ralentissements,
 - ruptures de tendance.
 
+### 4.4. Score de risque composite
+Nous avons construit un score synthétique à partir de :
+- l'incidence,
+- la mortalité,
+- ratio mortalité/incidence,
+- la variation annuelle de mortalité.
+
+Ce score permet d’identifier les pays nécessitant une surveillance prioritaire.
+
+## 5. Analyse comparative
+
+Le dashboard permet :
+
+- le classement des pays selon l'incidence, la mortalité, le ratio mortalité/incidence, le nombre de cas estimés;
+- la visualisation cartographique mondiale.
+
+Ces outils facilitent l’identification des pays les plus touchés.
+
+## 6. Analyse des tendances temporelles
+Pour un pays ou au niveau mondial, nous avons calculé :
+- l'évolution de l’incidence,
+- l'évolution de la mortalité,
+- les variations annuelles.
+
+## 7. Regroupement des pays (Clustering)
+Le regroupement des pays a été effectué par la standardisation des variables, le KMeans et la visualisation en 2 dimensions grâce à l'Analyse en Composante Principale (ACP)
+
+Ceci permet d'identifier des profils homogènes des pays selon :
+- leur niveau d’incidence,
+- leur niveau de mortalité,
+- leur contexte structurel.
+
+## 8. Modélisation statistique
+## 8.1 Prédiction de la mortalité
+Un modèle Random Forest Regressor est entraîné pour prédire la mortalité à partir des variables :
+- incidence
+- population
+- indicateurs structurels
+
+## 8.2. Prévision des tendances
+Une régression linéaire simple a été utilisée pour projeter :
+- l'incidence future
+- la mortalité future
+
+avec un horizon configurable de 3 à 10 ans.
+Cette prévision repose uniquement sur la tendance passée.
+
+## 9. Structure du dashboard
+Le dashboard que nous avons produit comprend 6 onglets tels que :
+- Vue globale
+- Comparaison des pays
+- Tendances
+- Risque
+- Regroupement des pays
+- Prédiction et prévision
+
+Chaque onglet comprend :
+- des visualisations interactives,
+- des indicateurs synthétiques,
+- un bloc d’interprétation automatique.
+
+## 10. Technologies utilisées
+- Python
+- Pandas
+- NumPy
+- Scikit-learn
+- Plotly
+- Dash
+- Dash Bootstrap Components
 
 
 
