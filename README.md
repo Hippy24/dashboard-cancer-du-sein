@@ -1,4 +1,4 @@
-# Tableau de bord épidémiologique mondial du cancer de sein : 2013 - 2023
+# **Tableau de bord épidémiologique mondial du cancer de sein : 2013 - 2023**
 
 Le cancer du sein constitue l’un des cancers les plus fréquents chez les femmes à l’échelle mondiale. Son incidence et sa mortalité varient fortement selon le niveau de développement économique, l’accès au dépistage, la qualité du système de santé, la structure démographique et l’urbanisation.
 
@@ -32,7 +32,7 @@ Ensuite, les indicateurs suivants ont été extraits pour chaque pays et chaque 
 - PIB par habitant (gdp_per_capita),
 - Dépenses de santé (% du PIB), (health_exp_gdp),
 - Population totale (population),
-- Population urbaine (%) (urban_pop_pct)
+- Population urbaine (urban_pop_pct)
 
 Ces indicateurs ont été utilisés pour rendre les modèles statistiques plus riches et réaliser le clustering des pays.
 
