@@ -1,5 +1,8 @@
 # **Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023**
 
+## Application en ligne
+Le dashboard est accessible ici : https://dashboard-cancer-du-sein.onrender.com
+
 Le cancer du sein constitue l’un des cancers les plus fréquents chez les femmes à l’échelle mondiale. Son incidence et sa mortalité varient fortement selon le niveau de développement économique, l’accès au dépistage, la qualité du système de santé, la structure démographique et l’urbanisation.
 
 L’objectif de ce projet est de construire un système d’analyse épidémiologique, allant de la collecte des données jusqu’à un tableau de bord interactif, permettant :
