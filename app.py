@@ -1,4 +1,4 @@
-# Importation des outils nécessaires et désactivation des warnings
+# Importation des bibliothèques nécessaires et désactivation des warnings
 
 import warnings
 warnings.filterwarnings("ignore")
