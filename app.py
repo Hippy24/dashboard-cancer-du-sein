@@ -1,3 +1,5 @@
+# Importation des outils nécessaires et désactivation des warnings
+
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -20,7 +22,8 @@ import plotly.graph_objects as go
 from dash import Dash, dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 
-# Constantes
+# Définition des constantes de l'application
+
 DATA_FILENAME = "dataset_final_cancer_sein_IHME_WB_2010_2023.csv"
 APP_TITLE = "Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023"
 SUBTITLE = "Sources de données : IHME & Banque mondiale"
@@ -45,6 +48,8 @@ COLORS = {
 
 RADIUS = "18px"
 GRAPH_CONFIG = {"displayModeBar": False, "responsive": True}
+
+# Création de plusieurs dictionnaires de styles à utiliser
 
 STYLE_APP = {"backgroundColor": COLORS["bg"], "minHeight": "100vh", "padding": "14px"}
 
@@ -113,7 +118,9 @@ CSS_DROPDOWN = """
 .sidebar .Select { color:#000000 !important; }
 """
 
-# Helpers UI
+# Les fonctions utiles
+## Mise en forme des titres et des figures
+
 def wrap_title(s: str, width: int = 38) -> str:
     return "<br>".join(textwrap.wrap(str(s).strip(), width=width))
 
@@ -164,6 +171,8 @@ def apply_french_layout(fig, title: str, legend_mode: str = "bottom"):
         )
     return fig
 
+## Création des composants réutilisables
+
 def H(text):
     return html.Div(text, className="h5", style={"marginBottom": "10px", "textAlign": "center"})
 
@@ -195,7 +204,8 @@ def kpi_card(title, value, sub=""):
         style=STYLE_CARD
     )
 
-# Chargement + features
+# Chargement de la base de données
+
 def load_data(path: str = DATA_FILENAME) -> pd.DataFrame:
     script_dir = Path(__file__).resolve().parent
     csv_path = Path(path)
@@ -205,11 +215,15 @@ def load_data(path: str = DATA_FILENAME) -> pd.DataFrame:
         raise FileNotFoundError("CSV introuvable")
     return pd.read_csv(csv_path)
 
+# Conversion numérique des données
+
 def safe_numeric(df_, cols):
     for c in cols:
         if c in df_.columns:
             df_[c] = pd.to_numeric(df_[c], errors="coerce")
     return df_
+
+# Création des attributs
 
 def add_features(df_: pd.DataFrame) -> pd.DataFrame:
     d = df_.copy()
@@ -250,7 +264,8 @@ def add_features(df_: pd.DataFrame) -> pd.DataFrame:
     )
     return d
 
-# Agrégats Monde / Régions (pondérés par population)
+# Opérations d'agrégations selon le monde et les régions
+
 def _wavg(series: pd.Series, weights: pd.Series):
     s = series.replace([np.inf, -np.inf], np.nan)
     w = weights.replace(0, np.nan)
@@ -322,7 +337,9 @@ def region_time_table(df_all: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(rows, ignore_index=True).sort_values(["region_std", "year"])
 
 
-# Modèles / clustering
+# Modélisation statistique et analyses statistiques
+## Modèle Random Forest pour prédire la mortalité
+
 def train_mortality_model(df_: pd.DataFrame):
     target = "mortality_asr"
     features = ["incidence_asr", "gdp_per_capita", "health_exp_gdp", "urban_pop_pct", "population"]
@@ -349,6 +366,8 @@ def train_mortality_model(df_: pd.DataFrame):
     importances = pd.Series(model.feature_importances_, index=feats).sort_values(ascending=False)
     return model, metrics, importances
 
+## Modèle de régression linéaire pour prédire la tandence
+
 def forecast_trend(df_country: pd.DataFrame, y_col: str, horizon: int):
     dc = df_country.dropna(subset=["year", y_col]).copy()
     if dc["year"].nunique() < 3:
@@ -365,6 +384,8 @@ def forecast_trend(df_country: pd.DataFrame, y_col: str, horizon: int):
     yhat = lr.predict(future.reshape(-1, 1))
 
     return pd.DataFrame({"year": future, "pred": yhat, "last_year": last_year})
+
+## Clustering des pays par KMeans et Analyse en Composante Principale
 
 def compute_clusters(df_: pd.DataFrame, year: int, k: int):
     cols = ["incidence_asr", "mortality_asr", "gdp_per_capita", "health_exp_gdp", "urban_pop_pct"]
@@ -393,7 +414,8 @@ def compute_clusters(df_: pd.DataFrame, year: int, k: int):
     centers = pd.DataFrame({"cluster": range(int(k)), "pca1": centers_pca[:, 0], "pca2": centers_pca[:, 1]})
     return d, cols, float(var[0]), float(var[1]), centers
 
-# Figures
+# Visualisation des graphiques avec Plotly
+
 def empty_fig(msg="Données insuffisantes"):
     fig = go.Figure()
     fig.add_annotation(text=msg, x=0.5, y=0.5, showarrow=False, font=dict(color=COLORS["text"]))
@@ -461,7 +483,8 @@ def importance_fig(importances):
     fig.update_yaxes(title_text="")
     return apply_french_layout(fig, "Variables les plus importantes", legend_mode="right")
 
-# INIT DATA
+# Initialisation des données
+
 df_raw = load_data(DATA_FILENAME)
 df = add_features(df_raw)
 
@@ -482,7 +505,8 @@ if trained:
 else:
     model_rf, model_metrics, model_importances = None, None, None
 
-# APP + CSS
+# Création de l'application avec injection du CSS pour gérer les dropdowns
+
 app = Dash(__name__, external_stylesheets=[THEME], title=APP_TITLE, suppress_callback_exceptions=True)
 server = app.server
 
@@ -506,7 +530,9 @@ app.index_string = f"""
     </body>
 </html>
 """
-# LAYOUT
+# Les différents composants du sidebar
+## L'image en haut du sidebar
+
 def sidebar():
     header_image = html.Img(
         src=app.get_asset_url("Cancer-du-sein.png"),
@@ -520,6 +546,8 @@ def sidebar():
         },
         alt="Cancer du sein",
     )
+
+## Les filtres selon la Vue(Monde/Régions/Pays), Année, Région, Pays, Horizon de prévision, Nombre de groupe
 
     region_block = html.Div(
         id="region_block",
@@ -586,6 +614,8 @@ def sidebar():
         dcc.Slider(id="k", min=3, max=8, step=1, value=4, marks={i: str(i) for i in range(3, 9)}),
     ])
 
+## Insertion des noms des membres de l'équipe de travail en bas du sidebar
+
     bottom_members = html.Div([
         html.Hr(style={"margin": "10px 0"}),
         html.Div("Membres du groupe", style={"textAlign": "left", "fontWeight": "700", "fontSize": "0.95rem"}),
@@ -595,6 +625,9 @@ def sidebar():
     ], style={"marginTop": "auto"})
 
     return html.Div([top_controls, bottom_members], className="sidebar", style=STYLE_SIDEBAR)
+
+# Les onglets du contenu principal
+## Onglet de Vue globale
 
 def tab_overview():
     return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
@@ -617,6 +650,8 @@ def tab_overview():
         interpretation_box(html.Div(id="interp_overview")),
     ])
 
+## Onglet de Comparaison
+
 def tab_compare():
     return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
         dbc.Row([
@@ -628,6 +663,8 @@ def tab_compare():
         interpretation_box(html.Div(id="interp_compare")),
     ])
 
+## Onglet des tendances
+
 def tab_trends():
     return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
         dbc.Row([
@@ -638,6 +675,8 @@ def tab_trends():
         ], className="g-2"),
         interpretation_box(html.Div(id="interp_trends")),
     ])
+
+## Onglet de Risque
 
 def tab_risk():
     return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
@@ -652,6 +691,8 @@ def tab_risk():
         interpretation_box(html.Div(id="interp_risk")),
     ])
 
+## Onglet de Regroupement des pays (Clustering)
+
 def tab_cluster():
     return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
         H("Regroupement des pays"),
@@ -662,6 +703,8 @@ def tab_cluster():
         html.Div(id="cluster_comment", style={"color": COLORS["muted"], "textAlign": "center", "fontSize": "0.98rem", "marginTop": "10px"}),
         interpretation_box(html.Div(id="interp_cluster")),
     ])
+
+## Onglet de Prédiction et prévision
 
 def tab_pred():
     return html.Div(style=STYLE_BLOCK_CONTAINER, children=[
@@ -691,6 +734,8 @@ def tab_pred():
         interpretation_box(html.Div(id="interp_pred")),
     ])
 
+## Barre d'onglets
+
 tabs = dcc.Tabs(
     id="tabs",
     value="overview",
@@ -707,6 +752,8 @@ tabs = dcc.Tabs(
     parent_style={"backgroundColor": COLORS["tab_idle"], "borderRadius": "14px"},
 )
 
+# Structure globale de l'application
+
 app.layout = dbc.Container(fluid=True, style=STYLE_APP, children=[
     dbc.Row([
         dbc.Col(html.Div([
@@ -721,7 +768,8 @@ app.layout = dbc.Container(fluid=True, style=STYLE_APP, children=[
     ])
 ])
 
-# Sidebar: activer/désactiver pays/région
+# Mode d'activation et de désactivation dans les filtres selon les choix effectués
+
 @app.callback(
     Output("country_dd", "disabled"),
     Output("region_dd", "disabled"),
@@ -732,7 +780,8 @@ def toggle_filters(scope):
     region_disabled = scope != "Régions"
     return country_disabled, region_disabled
 
-# Vue globale (KPI ici uniquement)
+# Mise à jour automatique des éléments de Vue globale dont 6 KPI, 2 cartes et le texte d'interprétation selon le choix : Monde/Régions/Pays
+
 @app.callback(
     Output("kpi1", "children"), Output("kpi2", "children"), Output("kpi3", "children"),
     Output("kpi4", "children"), Output("kpi5", "children"), Output("kpi6", "children"),
@@ -842,7 +891,8 @@ def cb_overview(year, scope, country, region):
         interp
     )
 
-# Comparaison (pays OU régions)
+# Mise à jour automatiquee des éléments de Comparaison par Régions ou par Pays
+
 @app.callback(
     Output("rank_inc", "figure"), Output("rank_mort", "figure"),
     Output("rank_fatal", "figure"), Output("rank_cases", "figure"),
@@ -883,7 +933,8 @@ def cb_compare(year, scope, region):
         interp
     )
 
-# Tendances (monde / région / pays)
+# Mise à jour automatique des éléments des Tendances selon le choix : Monde/Régions/Pays
+
 @app.callback(
     Output("ts_inc", "figure"), Output("ts_mort", "figure"),
     Output("ch_inc", "figure"), Output("ch_mort", "figure"),
@@ -941,7 +992,8 @@ def cb_trends(scope, country, region):
     interp = f"Évolution de l'incidence et de la mortalité pour {country}, avec repérage des années de rupture."
     return fig_a, fig_b, fig_c, fig_d, interp
 
-# Risque : monde / région / pays
+# Mise à jour automatique des éléments de Risque selon le choix : Monde/Régions/Pays
+
 @app.callback(
     Output("map_risk", "figure"), Output("rank_risk", "figure"), Output("risk_txt", "children"),
     Output("interp_risk", "children"),
@@ -1013,7 +1065,8 @@ def cb_risk(year, scope, country, region):
         interp
     )
 
-# Cluster
+# Mise à jour automatique des éléments de Regroupement des pays
+
 @app.callback(
     Output("cluster_pca", "figure"),
     Output("cluster_prof", "figure"),
@@ -1078,7 +1131,8 @@ def cb_cluster(year, k):
     interp = "Si les groupes sont bien séparés sur la PCA, cela suggère des profils réellement différents."
     return fig_pca, fig_prof, comment_txt, interp
 
-# Pred + forecast : monde / région / pays
+# Mise à jour automatique des éléments de Prédiction et prévision selon le choix : Monde/Régions/Pays
+
 @app.callback(
     Output("ml_importance", "figure"),
     Output("forecast", "figure"),
@@ -1165,6 +1219,7 @@ def cb_pred(scope, country, region, year, horizon):
     interp = "Les variables importantes indiquent les facteurs les plus contributifs. Comparer l'observé à l'estimé aide à repérer des écarts."
     return imp_fig, fig, pred_txt, interp
 
-# RUN
+# Lancement de l'application
+
 if __name__ == "__main__":
     app.run(debug=True)
