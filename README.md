@@ -3,6 +3,9 @@
 ## Application en ligne
 Le dashboard est accessible ici : https://dashboard-cancer-du-sein.onrender.com
 
+## Apperçu du dashboard
+![Aperçu du dashboard](assets/dashboard.png)
+
 Le cancer du sein constitue l’un des cancers les plus fréquents chez les femmes à l’échelle mondiale. Son incidence et sa mortalité varient fortement selon le niveau de développement économique, l’accès au dépistage, la qualité du système de santé, la structure démographique et l’urbanisation.
 
 L’objectif de ce projet est de construire un système d’analyse épidémiologique, allant de la collecte des données jusqu’à un tableau de bord interactif, permettant :
@@ -14,8 +17,19 @@ L’objectif de ce projet est de construire un système d’analyse épidémiolo
 - le regroupement de pays selon leur profil.
 
 ## 1. Collecte de données
-### 1.1. Données provenant de l'IHME - GBD (Global Burden Desease)
-Dans un premier temps, des données issues du programme Global Burden of Disease (GBD) de l’IHME ont été téléchargées selon les indicateurs suivants :
+### 1.1. Données de la Banque Mondiale : Webscraping
+Dans un premier temps, avec le Webscraping, les indicateurs suivants ont été extraits pour chaque pays et chaque année grâce à l’API Banque Mondiale entre 2010 et 2025 :
+- PIB par habitant (gdp_per_capita),
+- Dépenses de santé (% du PIB), (health_exp_gdp),
+- Population totale (population),
+- Population urbaine (urban_pop_pct).
+
+Ces indicateurs ont été utilisés pour rendre les modèles statistiques plus riches et pour réaliser le regroupement des pays.
+
+En revanche, il n'était pas possible d'extraire directement les données sur le cancer du sein depuis la Banque Mondiale. Nous étions donc passés par l'IHME pour pouvoir accéder aux données relatives au cancer du sein.
+
+### 1.2. Données provenant de l'IHME - GBD (Global Burden Desease)
+Des données issues du programme Global Burden of Disease (GBD) de l’IHME ont été téléchargées selon les indicateurs suivants :
 - Cause : Cancer du sein
 - Sexe : Femmes
 - Âge : Standardisé selon l’âge
@@ -30,14 +44,7 @@ Les colonnes retenues sont les suivantes :
 - incidence_asr,
 - mortality_asr.
 
-### 1.2. Données de la Banque Mondiale : Webscraping
-Ensuite, les indicateurs suivants ont été extraits pour chaque pays et chaque année grâce à l’API Banque Mondiale :
-- PIB par habitant (gdp_per_capita),
-- Dépenses de santé (% du PIB), (health_exp_gdp),
-- Population totale (population),
-- Population urbaine (urban_pop_pct).
-
-Ces indicateurs ont été utilisés pour rendre les modèles statistiques plus riches et réaliser le clustering des pays.
+Actuellement, les données ne sont disponibles que jusqu'en 2023. Ce qui nous a contraint à travailler sur une période de 2010 à 2023.
 
 ## 2. Nettoyage et harmonisation des données
 ### 2.1. Rectification de l'encodage
