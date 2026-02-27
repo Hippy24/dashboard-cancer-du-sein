@@ -34,7 +34,7 @@ Des données issues du programme Global Burden of Disease (GBD) de l’IHME ont 
 - Sexe : Femmes
 - Âge : Standardisé selon l’âge
 - Mesures sélectionnées : Incidence (ASR) et Mortalité (ASR)
-- Période : 2010–2023
+- Période : 2010-2023
 - Niveau : Pays
   
 Les colonnes retenues sont les suivantes :
