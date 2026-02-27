@@ -1,4 +1,6 @@
-# **Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023**
+<h1 align="center">
+  <strong>Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023</strong>
+</h1>
 
 ## Application en ligne
 Le dashboard est accessible ici : https://dashboard-cancer-du-sein.onrender.com
