@@ -614,17 +614,7 @@ def sidebar():
         dcc.Slider(id="k", min=3, max=8, step=1, value=4, marks={i: str(i) for i in range(3, 9)}),
     ])
 
-## Insertion des noms des membres de l'équipe de travail en bas du sidebar
-
-    bottom_members = html.Div([
-        html.Hr(style={"margin": "10px 0"}),
-        html.Div("Membres du groupe", style={"textAlign": "left", "fontWeight": "700", "fontSize": "0.95rem"}),
-        html.Div("Hippolyte ADECHIAN", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
-        html.Div("Joseph Giovanni AGBAHOUNGBA", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
-        html.Div("Elvira Francheska KENGNI", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
-    ], style={"marginTop": "auto"})
-
-    return html.Div([top_controls, bottom_members], className="sidebar", style=STYLE_SIDEBAR)
+    return html.Div([top_controls], className="sidebar", style=STYLE_SIDEBAR)
 
 # Les onglets du contenu principal
 ## Onglet de Vue globale
