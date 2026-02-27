@@ -619,8 +619,8 @@ def sidebar():
     bottom_members = html.Div([
         html.Hr(style={"margin": "10px 0"}),
         html.Div("Membres du groupe", style={"textAlign": "left", "fontWeight": "700", "fontSize": "0.95rem"}),
-        html.Div("Joseph Giovanni AGBAHOUNGBA", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
         html.Div("Hippolyte ADECHIAN", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
+        html.Div("Joseph Giovanni AGBAHOUNGBA", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
         html.Div("Elvira Francheska KENGNI", style={"textAlign": "left", "color": COLORS["muted"], "fontSize": "0.82rem", "lineHeight": "1.2"}),
     ], style={"marginTop": "auto"})
 
