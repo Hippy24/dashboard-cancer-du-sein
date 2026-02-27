@@ -1,5 +1,5 @@
 <h1 align="center">
-  <strong>Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023</strong>
+  <strong>Projet : Tableau de bord épidémiologique mondial du cancer de sein : 2010 - 2023</strong>
 </h1>
 
 ## Application en ligne
@@ -177,20 +177,7 @@ Chaque onglet comprend :
 - Dash
 - Dash Bootstrap Components
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Les membres du groupe :
+- ADECHIAN Hippolyte
+- AGBAHOUNGBA Joseph Giovanni
+- KENGNI Francheska Elvira
