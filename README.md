@@ -44,7 +44,7 @@ py -3.12 -m venv .venv
 python -m pip install --upgrade pip setuptools wheel
 
 # Installation des dépendances
-pip install -r requirements.txt
+pip install --only-binary=:all: -r requirements.txt
 
 # Lancement de l'application
 python app.py
