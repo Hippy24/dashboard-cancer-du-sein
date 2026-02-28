@@ -13,6 +13,48 @@ Le dashboard est accessible ici : https://dashboard-cancer-du-sein.onrender.com
 ## Apperçu du dashboard
 ![Aperçu du dashboard](assets/dashboard.png)
 
+## Environnement technique
+Ce projet a été développé sous :
+- Python 3.12
+- Système : Windows
+- Environnement virtuel (venv)
+
+## Technologies utilisées
+- Python
+- Pandas
+- NumPy
+- Scikit-learn
+- Plotly
+- Dash
+- Dash Bootstrap Components
+
+Les versions exactes sont listées dans le fichier `requirements.txt`.
+
+Les versions des librairies ont été fixées pour garantir la stabilité et la reproductibilité des résultats.
+
+## Installation de l’environnement virtuel
+```bash
+# Création de l'environnement
+py -3.12 -m venv .venv
+
+# Activation
+.\.venv\Scripts\activate
+
+# Mise à jour du pip
+python -m pip install --upgrade pip setuptools wheel
+
+# Installation des dépendances
+pip install -r requirements.txt
+
+# Lancement de l'application
+python app.py
+
+# Accessible sur
+http://127.0.0.1:8050/
+```
+
+# Méthodologie
+
 Le cancer du sein constitue l’un des cancers les plus fréquents chez les femmes à l’échelle mondiale. Son incidence et sa mortalité varient fortement selon le niveau de développement économique, l’accès au dépistage, la qualité du système de santé, la structure démographique et l’urbanisation.
 
 L’objectif de ce projet est de construire un système d’analyse épidémiologique, allant de la collecte des données jusqu’à un tableau de bord interactif, permettant :
@@ -25,7 +67,7 @@ L’objectif de ce projet est de construire un système d’analyse épidémiolo
 
 ## 1. Collecte de données
 ### 1.1. Données de la Banque Mondiale : Webscraping
-Dans un premier temps, avec le Webscraping, les indicateurs suivants ont été extraits pour chaque pays et chaque année grâce à l’API Banque Mondiale entre 2010 et 2025 :
+Dans un premier temps, avec l'extraction automatisée via l’API REST de la Banque Mondiale, les indicateurs suivants ont été extraits pour chaque pays et chaque année entre 2010 et 2025 :
 - PIB par habitant (gdp_per_capita),
 - Dépenses de santé (% du PIB), (health_exp_gdp),
 - Population totale (population),
@@ -38,7 +80,7 @@ Ces indicateurs ont été utilisés pour rendre les modèles statistiques plus r
 
 En revanche, il n'était pas possible d'extraire directement les données sur le cancer du sein depuis la Banque Mondiale. Nous étions donc passés par l'IHME pour pouvoir accéder aux données relatives au cancer du sein.
 
-### 1.2. Données provenant de l'IHME - GBD (Global Burden Desease)
+### 1.2. Données provenant de l'IHME - GBD (Global Burden of Disease)
 Des données issues du programme Global Burden of Disease (GBD) de l’IHME ont été téléchargées selon les indicateurs suivants :
 - Cause : Cancer du sein
 - Sexe : Femmes
@@ -72,6 +114,19 @@ Les noms issus de l'IHME ne correspondent pas toujours exactement à ceux de la 
 - la conversion vers le code ISO3 avec (pycountry).
 
 *Au total, **203 pays IHME** ont été mappés.*
+
+### 2.3 Gestion des valeurs manquantes
+
+La présence de valeurs manquantes concernait principalement les indicateurs structurels issus de la Banque Mondiale (PIB par habitant, dépenses de santé, population urbaine).
+
+Afin de préserver la cohérence temporelle tout en limitant les biais, nous avions mis en place, une stratégie hiérarchique d’imputation :
+
+- Interpolation temporelle par pays (méthode linéaire).
+- Imputation par moyenne régionale pour une année donnée.
+- Imputation par moyenne régionale globale.
+- Remplacement résiduel par la médiane globale.
+
+Les données épidémiologiques de l'IHME n'ont pas été imputées, afin de conserver l’intégrité des estimations officielles.
 
 ## 3. Jointure des bases de données
 Après l'obtention des différentes bases de données, la jointures entre elles a été faites sur les clés :
@@ -107,7 +162,7 @@ Ces estimations permettent une lecture plus concrète des volumes de cas et déc
 
 Elle a été calculée selon la formule : fatality_proxy = mortality_asr / incidence_asr
 
-Ce ratio permet d’apprécier la sévérité relative du cancer.
+Ce ratio constitue un indicateur indirect de sévérité relative au niveau populationnel.
 
 ### 4.3. Variations annuelles
 Nous avons calculé les variations annuelles par pays (pct_change() × 100).
@@ -157,6 +212,8 @@ Un modèle Random Forest Regressor est entraîné pour prédire la mortalité à
 - population
 - indicateurs structurels
 
+Le modèle Random Forest a été évalué via une séparation train/test (22%) avec calcul du coefficient de détermination (R²) et de l’erreur absolue moyenne (MAE).
+
 ## 8.2. Prévision des tendances
 Une régression linéaire simple a été utilisée pour projeter :
 - l'incidence future
@@ -179,16 +236,8 @@ Chaque onglet comprend :
 - des indicateurs synthétiques,
 - un bloc d’interprétation automatique.
 
-## 10. Technologies utilisées
-- Python
-- Pandas
-- NumPy
-- Scikit-learn
-- Plotly
-- Dash
-- Dash Bootstrap Components
-
 # Les membres du groupe :
 - ADECHIAN Hippolyte
 - AGBAHOUNGBA Joseph Giovanni
 - KENGNI Francheska Elvira
+  
