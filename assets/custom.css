@@ -1,0 +1,20 @@
+/* Texte des options dans le menu déroulant */
+.Select-menu-outer {
+    color: black !important;
+}
+
+.Select-option {
+    color: black !important;
+}
+
+/* Texte sélectionné */
+.Select-value-label {
+    color: black !important;
+}
+
+/* Dropdown Région : options en noir + valeur sélectionnée en noir */
+.region-dd .Select-menu-outer,
+.region-dd .Select-option,
+.region-dd .Select-value-label {
+  color: black !important;
+}

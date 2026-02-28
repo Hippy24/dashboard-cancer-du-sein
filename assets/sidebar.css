@@ -1,0 +1,94 @@
+/* =========================================================
+   FIX SIDEBAR DROPDOWN — Dash 4 / react-select classes change
+   Cible: classes "Select__..." + classes générées "css-...-..."
+   ========================================================= */
+
+.sidebar .sb-dd{
+  color:#000 !important;
+}
+
+/* ---- CONTROL (le champ) ---- */
+.sidebar .sb-dd .Select__control,
+.sidebar .sb-dd [class$="-control"]{
+  background:#F3F6FF !important;
+  border:1px solid rgba(0,0,0,.25) !important;
+  box-shadow:none !important;
+}
+
+/* ---- VALEUR affichée / placeholder / input ---- */
+.sidebar .sb-dd .Select__single-value,
+.sidebar .sb-dd [class$="-singleValue"],
+.sidebar .sb-dd .Select__placeholder,
+.sidebar .sb-dd [class$="-placeholder"],
+.sidebar .sb-dd .Select__input-container,
+.sidebar .sb-dd [class$="-input"]{
+  color:#000 !important;
+  font-weight:600 !important;
+}
+
+.sidebar .sb-dd input{
+  color:#000 !important;
+  caret-color:#000 !important;
+}
+
+/* ---- MENU ---- */
+.sidebar .sb-dd .Select__menu,
+.sidebar .sb-dd [class$="-menu"]{
+  background:#FFF !important;
+  border:1px solid rgba(0,0,0,.2) !important;
+}
+
+/* ---- OPTIONS ---- */
+.sidebar .sb-dd .Select__option,
+.sidebar .sb-dd [class$="-option"]{
+  background:#FFF !important;
+  color:#000 !important;
+}
+
+.sidebar .sb-dd .Select__option--is-focused,
+.sidebar .sb-dd [class*="-option--is-focused"]{
+  background:#E6EEFF !important;
+  color:#000 !important;
+}
+
+.sidebar .sb-dd .Select__option--is-selected,
+.sidebar .sb-dd [class*="-option--is-selected"]{
+  background:#CFE0FF !important;
+  color:#000 !important;
+}
+
+/* ---- INDICATEURS (flèche) ---- */
+.sidebar .sb-dd .Select__indicator,
+.sidebar .sb-dd [class$="-indicatorContainer"]{
+  color:#000 !important;
+}
+
+/* ===== Sliders (marks + labels) in sidebar ===== */
+
+/* Texte des graduations (3,4,5...) */
+.sidebar .rc-slider-mark-text{
+  color: rgba(234,240,255,0.85) !important;   /* proche de ton COLORS["text"] */
+  font-weight: 600 !important;
+}
+
+/* Texte des graduations actives (au-dessus du rail) */
+.sidebar .rc-slider-mark-text-active{
+  color: #FFFFFF !important;
+  font-weight: 700 !important;
+}
+
+/* (Optionnel) valeur au survol / tooltip si activée */
+.sidebar .rc-slider-tooltip-inner{
+  color: #000 !important;
+}
+
+/* (Optionnel) la ligne du slider */
+.sidebar .rc-slider-rail{
+  background-color: rgba(255,255,255,0.20) !important;
+}
+.sidebar .rc-slider-track{
+  background-color: #7C3AED !important; /* violet proche de ton style */
+}
+.sidebar .rc-slider-handle{
+  border-color: #C4B5FD !important;
+}
