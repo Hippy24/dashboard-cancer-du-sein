@@ -28,6 +28,9 @@ Dans un premier temps, avec le Webscraping, les indicateurs suivants ont été e
 
 Ces indicateurs ont été utilisés pour rendre les modèles statistiques plus riches et pour réaliser le regroupement des pays.
 
+- **Voir le script ici :** [`scripts/webscraping.py`](scripts/webscraping.py)
+- **Le jeu de données obtenu de la Banque Mondiale :** [`data/wb_data_wide_2010_2025.csv`](data/wb_data_wide_2010_2025.csv)
+
 En revanche, il n'était pas possible d'extraire directement les données sur le cancer du sein depuis la Banque Mondiale. Nous étions donc passés par l'IHME pour pouvoir accéder aux données relatives au cancer du sein.
 
 ### 1.2. Données provenant de l'IHME - GBD (Global Burden Desease)
@@ -47,6 +50,7 @@ Les colonnes retenues sont les suivantes :
 - mortality_asr.
 
 Actuellement, les données ne sont disponibles que jusqu'en 2023. Ce qui nous a contraint à travailler sur une période de 2010 à 2023.
+- **Voir le jeu de données IHME-GBD :** [`data/IHME-GBD_2023_DATA.csv`](data/IHME-GBD_2023_DATA.csv)
 
 ## 2. Nettoyage et harmonisation des données
 ### 2.1. Rectification de l'encodage
@@ -81,6 +85,8 @@ La base de données finale obtenue est composée des variables suivantes :
 - iso3,
 - country,
 - region_std (continent).
+
+**Base de données finale :** [`dataset_final_cancer_sein_IHME_WB_2010_2023.csv`](dataset_final_cancer_sein_IHME_WB_2010_2023.csv)
 
 ## 4. Construction des indicateurs épidémiologiques
 Cette étape est réalisée dans la fonction **add_features()** du code.
