@@ -7,6 +7,9 @@ Le dashboard est accessible ici : https://dashboard-cancer-du-sein.onrender.com
 
 **Voir le script ici :** [`app.py`](app.py)
 
+## Rapport du projet
+**Le rapport de ce projet disponible au format pdf :**
+
 ## Apperçu du dashboard
 ![Aperçu du dashboard](assets/dashboard.png)
 
