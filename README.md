@@ -15,9 +15,10 @@ Le dashboard est accessible ici : https://dashboard-cancer-du-sein.onrender.com
 
 ## Environnement technique
 Ce projet a été développé sous :
-- Python 3.12
+- Python 3.13.2
 - Système : Windows
 - Environnement virtuel (venv)
+- IDE : Visual Studio Code
 
 ## Technologies utilisées
 - Python
