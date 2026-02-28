@@ -51,7 +51,7 @@ pip install --only-binary=:all: -r requirements.txt
 python app.py
 
 # Accessible sur
-http://127.0.0.1:8050/
+http://127.0.0.1:10000
 ```
 
 # Méthodologie
