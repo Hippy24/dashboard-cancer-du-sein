@@ -1,8 +1,4 @@
-/* =========================================================
-   FIX SIDEBAR DROPDOWN — Dash 4 / react-select classes change
-   Cible: classes "Select__..." + classes générées "css-...-..."
-   ========================================================= */
-
+/* FIX SIDEBAR DROPDOWN — Dash 4 / react-select classes change */
 .sidebar .sb-dd{
   color:#000 !important;
 }
@@ -67,27 +63,27 @@
 
 /* Texte des graduations (3,4,5...) */
 .sidebar .rc-slider-mark-text{
-  color: rgba(234,240,255,0.85) !important;   /* proche de ton COLORS["text"] */
+  color: rgba(234,240,255,0.85) !important;
   font-weight: 600 !important;
 }
 
-/* Texte des graduations actives (au-dessus du rail) */
+/* Texte des graduations actives */
 .sidebar .rc-slider-mark-text-active{
   color: #FFFFFF !important;
   font-weight: 700 !important;
 }
 
-/* (Optionnel) valeur au survol / tooltip si activée */
+/* valeur au survol / tooltip si activée */
 .sidebar .rc-slider-tooltip-inner{
   color: #000 !important;
 }
 
-/* (Optionnel) la ligne du slider */
+/* la ligne du slider */
 .sidebar .rc-slider-rail{
   background-color: rgba(255,255,255,0.20) !important;
 }
 .sidebar .rc-slider-track{
-  background-color: #7C3AED !important; /* violet proche de ton style */
+  background-color: #7C3AED !important;
 }
 .sidebar .rc-slider-handle{
   border-color: #C4B5FD !important;

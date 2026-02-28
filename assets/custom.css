@@ -18,3 +18,23 @@
 .region-dd .Select-value-label {
   color: black !important;
 }
+
+/* REGION dropdown: forcer texte NOIR partout (valeur + menu + options) */
+.region-dd,
+.region-dd * {
+  color: #000 !important;
+}
+
+/* Fond clair + bord (pour éviter “texte blanc sur fond clair”) */
+.region-dd .Select-control,
+.region-dd .Select-menu-outer,
+.region-dd .Select-option {
+  background-color: #FFFFFF !important;
+}
+
+/* Anciennes classes (VirtualizedSelect) souvent utilisées par Dash */
+.region-dd .VirtualizedSelectOption,
+.region-dd .VirtualizedSelectFocusedOption {
+  color: #000 !important;
+  background-color: #FFFFFF !important;
+}
